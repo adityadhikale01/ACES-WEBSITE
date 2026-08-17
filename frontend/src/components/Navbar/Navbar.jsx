@@ -9,38 +9,18 @@ import {
   Sparkles,
 } from "lucide-react";
 import "./Navbar.css";
+import acesLogo from "../../assets/aceslogo.jpeg";
 const mainLinks = [
-  {
-    label: "Home",
-    path: "/",
-  },
-  {
-    label: "About",
-    path: "/about",
-  },
-  {
-    label: "Events",
-    path: "/events",
-  },
-  {
-    label: "Committee",
-    path: "/committee",
-  },
+  { label: "Home", path: "/" },
+  { label: "About", path: "/about" },
+  { label: "Events", path: "/events" },
+  { label: "Committee", path: "/committee" },
 ];
 
 const exploreLinks = [
-  {
-    label: "Activities",
-    path: "/activities",
-  },
-  {
-    label: "Achievements",
-    path: "/achievements",
-  },
-  {
-    label: "Gallery",
-    path: "/gallery",
-  },
+  { label: "Activities", path: "/activities" },
+  { label: "Achievements", path: "/achievements" },
+  { label: "Gallery", path: "/gallery" },
 ];
 
 function Navbar() {
@@ -85,27 +65,34 @@ function Navbar() {
           isScrolled ? "aces-navbar--scrolled" : ""
         }`}
       >
-        <div className="aces-navbar__container">
-          {/* Logo */}
+        <div className="aces-navbar-container">
+
+          {/* Brand */}
           <NavLink
             to="/"
-            className="aces-brand"
+            className="aces-navbar-brand"
             onClick={closeMobileMenu}
           >
-            <div className="aces-brand__logo">
-              <span>AC</span>
-            </div>
+            <div className="aces-navbar-logo">
+                <img
+                  src={acesLogo}
+                  alt="ACES Logo"
+                />
+              </div>
 
-            <div className="aces-brand__content">
-              <span className="aces-brand__name">ACES</span>
-              <span className="aces-brand__sub">
+            <div className="aces-navbar-brand-content">
+              <span className="aces-navbar-brand-name">
+                ACES
+              </span>
+
+              <span className="aces-navbar-brand-sub">
                 Computer Engineering
               </span>
             </div>
           </NavLink>
 
           {/* Desktop Navigation */}
-          <nav className="aces-nav">
+          <nav className="aces-navbar-nav">
             {mainLinks.map((link) => (
               <NavItem
                 key={link.path}
@@ -116,12 +103,12 @@ function Navbar() {
 
             {/* Explore */}
             <div
-              className="aces-nav__dropdown"
+              className="aces-navbar-dropdown"
               onMouseEnter={() => setIsExploreOpen(true)}
               onMouseLeave={() => setIsExploreOpen(false)}
             >
               <button
-                className="aces-nav__dropdown-trigger"
+                className="aces-navbar-dropdown-trigger"
                 onClick={() =>
                   setIsExploreOpen((prev) => !prev)
                 }
@@ -156,9 +143,9 @@ function Navbar() {
                       scale: 0.96,
                     }}
                     transition={{ duration: 0.2 }}
-                    className="aces-dropdown"
+                    className="aces-navbar-dropdown-menu"
                   >
-                    <div className="aces-dropdown__header">
+                    <div className="aces-navbar-dropdown-header">
                       <Sparkles size={15} />
                       <span>Discover ACES</span>
                     </div>
@@ -167,17 +154,18 @@ function Navbar() {
                       <NavLink
                         key={link.path}
                         to={link.path}
-                        onClick={() => setIsExploreOpen(false)}
+                        onClick={() =>
+                          setIsExploreOpen(false)
+                        }
                         className={({ isActive }) =>
-                          `aces-dropdown__item ${
+                          `aces-navbar-dropdown-item ${
                             isActive
-                              ? "aces-dropdown__item--active"
+                              ? "aces-navbar-dropdown-item--active"
                               : ""
                           }`
                         }
                       >
                         <span>{link.label}</span>
-
                         <ArrowUpRight size={15} />
                       </NavLink>
                     ))}
@@ -190,7 +178,7 @@ function Navbar() {
           {/* CTA */}
           <NavLink
             to="/join"
-            className="aces-navbar__cta"
+            className="aces-navbar-cta"
           >
             <span>Join ACES</span>
             <ArrowUpRight size={16} />
@@ -198,7 +186,7 @@ function Navbar() {
 
           {/* Mobile Toggle */}
           <button
-            className="aces-mobile-toggle"
+            className="aces-navbar-mobile-toggle"
             onClick={() =>
               setIsMobileOpen((prev) => !prev)
             }
@@ -234,17 +222,17 @@ function Navbar() {
         </div>
       </motion.header>
 
-      {/* Mobile Navigation */}
+      {/* Mobile Menu */}
       <AnimatePresence>
         {isMobileOpen && (
           <motion.div
-            className="aces-mobile-menu"
+            className="aces-navbar-mobile-menu"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="aces-mobile-menu__content"
+              className="aces-navbar-mobile-content"
               initial={{ y: -30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -30, opacity: 0 }}
@@ -267,7 +255,7 @@ function Navbar() {
                 </motion.div>
               ))}
 
-              <div className="aces-mobile-menu__section">
+              <div className="aces-navbar-mobile-section">
                 <span>EXPLORE</span>
 
                 {exploreLinks.map((link) => (
@@ -275,7 +263,7 @@ function Navbar() {
                     key={link.path}
                     to={link.path}
                     onClick={closeMobileMenu}
-                    className="aces-mobile-menu__subitem"
+                    className="aces-navbar-mobile-subitem"
                   >
                     {link.label}
                   </NavLink>
@@ -285,7 +273,7 @@ function Navbar() {
               <NavLink
                 to="/join"
                 onClick={closeMobileMenu}
-                className="aces-mobile-menu__cta"
+                className="aces-navbar-mobile-cta"
               >
                 Join ACES
                 <ArrowUpRight size={18} />
@@ -304,8 +292,8 @@ function NavItem({ to, label }) {
       to={to}
       end={to === "/"}
       className={({ isActive }) =>
-        `aces-nav__link ${
-          isActive ? "aces-nav__link--active" : ""
+        `aces-navbar-link ${
+          isActive ? "aces-navbar-link--active" : ""
         }`
       }
     >
@@ -315,8 +303,8 @@ function NavItem({ to, label }) {
 
           {isActive && (
             <motion.span
-              layoutId="navbar-active"
-              className="aces-nav__active-line"
+              layoutId="aces-navbar-active"
+              className="aces-navbar-active-line"
               transition={{
                 type: "spring",
                 stiffness: 500,
@@ -337,15 +325,14 @@ function MobileNavItem({ to, label, onClick }) {
       end={to === "/"}
       onClick={onClick}
       className={({ isActive }) =>
-        `aces-mobile-menu__item ${
+        `aces-navbar-mobile-item ${
           isActive
-            ? "aces-mobile-menu__item--active"
+            ? "aces-navbar-mobile-item--active"
             : ""
         }`
       }
     >
       {label}
-
       <ArrowUpRight size={19} />
     </NavLink>
   );
