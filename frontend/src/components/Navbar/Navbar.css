@@ -1,0 +1,524 @@
+:root {
+  --aces-bg: #050507;
+  --aces-surface: rgba(15, 15, 19, 0.72);
+  --aces-border: rgba(255, 255, 255, 0.09);
+  --aces-text: #f5f5f5;
+  --aces-muted: #92929b;
+  --aces-accent: #8b5cf6;
+  --aces-accent-2: #6366f1;
+}
+
+/* ================================
+   NAVBAR
+================================ */
+
+.aces-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+
+  padding: 20px 24px;
+
+  transition:
+    padding 0.35s ease,
+    background 0.35s ease;
+}
+
+.aces-navbar--scrolled {
+  padding: 12px 24px;
+}
+
+.aces-navbar__container {
+  max-width: 1280px;
+  height: 68px;
+
+  margin: 0 auto;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 10px 0 14px;
+
+  border: 1px solid var(--aces-border);
+  border-radius: 20px;
+
+  background: rgba(7, 7, 10, 0.58);
+
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  transition:
+    background 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.aces-navbar--scrolled .aces-navbar__container {
+  background: rgba(7, 7, 10, 0.88);
+
+  box-shadow:
+    0 16px 50px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* ================================
+   BRAND
+================================ */
+
+.aces-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+
+  color: var(--aces-text);
+  text-decoration: none;
+
+  flex-shrink: 0;
+}
+
+.aces-brand__logo {
+  position: relative;
+
+  width: 42px;
+  height: 42px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--aces-accent),
+      var(--aces-accent-2)
+    );
+
+  box-shadow:
+    0 0 25px rgba(139, 92, 246, 0.25);
+
+  overflow: hidden;
+}
+
+.aces-brand__logo::before {
+  content: "";
+
+  position: absolute;
+
+  width: 70px;
+  height: 20px;
+
+  background: rgba(255, 255, 255, 0.2);
+
+  transform: rotate(-45deg);
+  left: -45px;
+
+  animation: acesLogoShine 4s infinite;
+}
+
+@keyframes acesLogoShine {
+  0% {
+    left: -70px;
+  }
+
+  30%,
+  100% {
+    left: 70px;
+  }
+}
+
+.aces-brand__logo span {
+  position: relative;
+  z-index: 1;
+
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.aces-brand__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.aces-brand__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.aces-brand__sub {
+  font-size: 9px;
+  color: var(--aces-muted);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+/* ================================
+   DESKTOP NAV
+================================ */
+
+.aces-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  margin-left: auto;
+  margin-right: 30px;
+}
+
+.aces-nav__link,
+.aces-nav__dropdown-trigger {
+  position: relative;
+
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 0 15px;
+
+  border: 0;
+  background: transparent;
+
+  color: var(--aces-muted);
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+
+  text-decoration: none;
+
+  cursor: pointer;
+
+  transition:
+    color 0.25s ease,
+    background 0.25s ease;
+}
+
+.aces-nav__link:hover,
+.aces-nav__dropdown-trigger:hover {
+  color: var(--aces-text);
+}
+
+.aces-nav__link--active {
+  color: var(--aces-text);
+}
+
+.aces-nav__active-line {
+  position: absolute;
+
+  left: 15px;
+  right: 15px;
+  bottom: 3px;
+
+  height: 2px;
+
+  border-radius: 10px;
+
+  background: linear-gradient(
+    90deg,
+    var(--aces-accent),
+    var(--aces-accent-2)
+  );
+
+  box-shadow:
+    0 0 10px rgba(139, 92, 246, 0.7);
+}
+
+/* ================================
+   DROPDOWN
+================================ */
+
+.aces-nav__dropdown {
+  position: relative;
+}
+
+.aces-dropdown {
+  position: absolute;
+
+  top: calc(100% + 12px);
+  right: 0;
+
+  width: 220px;
+
+  padding: 8px;
+
+  border: 1px solid var(--aces-border);
+  border-radius: 16px;
+
+  background: rgba(10, 10, 14, 0.94);
+
+  backdrop-filter: blur(25px);
+
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, 0.45);
+}
+
+.aces-dropdown__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 11px;
+
+  color: var(--aces-muted);
+
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.aces-dropdown__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 12px;
+
+  border-radius: 10px;
+
+  color: var(--aces-muted);
+
+  font-size: 13px;
+  text-decoration: none;
+
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.aces-dropdown__item:hover,
+.aces-dropdown__item--active {
+  color: var(--aces-text);
+  background: rgba(255, 255, 255, 0.06);
+
+  transform: translateX(3px);
+}
+
+/* ================================
+   CTA
+================================ */
+
+.aces-navbar__cta {
+  height: 44px;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 0 17px;
+
+  border-radius: 12px;
+
+  color: white;
+
+  background: linear-gradient(
+    135deg,
+    var(--aces-accent),
+    var(--aces-accent-2)
+  );
+
+  font-size: 12px;
+  font-weight: 700;
+
+  text-decoration: none;
+
+  box-shadow:
+    0 8px 25px rgba(99, 102, 241, 0.2);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.aces-navbar__cta:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 12px 30px rgba(99, 102, 241, 0.35);
+}
+
+/* ================================
+   MOBILE
+================================ */
+
+.aces-mobile-toggle {
+  display: none;
+
+  width: 42px;
+  height: 42px;
+
+  margin-left: auto;
+
+  place-items: center;
+
+  border: 1px solid var(--aces-border);
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.04);
+
+  color: var(--aces-text);
+
+  cursor: pointer;
+}
+
+/* ================================
+   MOBILE MENU
+================================ */
+
+.aces-mobile-menu {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 900;
+
+  padding: 105px 20px 30px;
+
+  background: rgba(3, 3, 5, 0.94);
+
+  backdrop-filter: blur(25px);
+
+  overflow-y: auto;
+}
+
+.aces-mobile-menu__content {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.aces-mobile-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 18px 4px;
+
+  border-bottom: 1px solid var(--aces-border);
+
+  color: var(--aces-muted);
+
+  font-size: 26px;
+  font-weight: 700;
+
+  text-decoration: none;
+
+  transition: color 0.2s ease;
+}
+
+.aces-mobile-menu__item:hover,
+.aces-mobile-menu__item--active {
+  color: white;
+}
+
+.aces-mobile-menu__section {
+  display: flex;
+  flex-direction: column;
+
+  margin-top: 30px;
+}
+
+.aces-mobile-menu__section > span {
+  margin-bottom: 12px;
+
+  color: var(--aces-muted);
+
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.aces-mobile-menu__subitem {
+  padding: 9px 0;
+
+  color: #c0c0c8;
+
+  font-size: 15px;
+
+  text-decoration: none;
+}
+
+.aces-mobile-menu__cta {
+  margin-top: 35px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  height: 54px;
+
+  border-radius: 14px;
+
+  color: white;
+
+  background: linear-gradient(
+    135deg,
+    var(--aces-accent),
+    var(--aces-accent-2)
+  );
+
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* ================================
+   RESPONSIVE
+================================ */
+
+@media (max-width: 900px) {
+  .aces-nav,
+  .aces-navbar__cta {
+    display: none;
+  }
+
+  .aces-mobile-toggle {
+    display: grid;
+  }
+
+  .aces-navbar__container {
+    padding-right: 10px;
+  }
+}
+
+@media (max-width: 500px) {
+  .aces-navbar {
+    padding: 12px;
+  }
+
+  .aces-navbar--scrolled {
+    padding: 8px 12px;
+  }
+
+  .aces-navbar__container {
+    height: 62px;
+    border-radius: 16px;
+  }
+
+  .aces-brand__sub {
+    display: none;
+  }
+
+  .aces-brand__name {
+    font-size: 16px;
+  }
+
+  .aces-brand__logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .aces-mobile-menu {
+    padding-top: 90px;
+  }
+}
