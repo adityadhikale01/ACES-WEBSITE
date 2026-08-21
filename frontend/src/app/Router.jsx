@@ -3,8 +3,8 @@ import { createBrowserRouter } from "react-router-dom";
 import RootLayout from "../layouts/RootLayout";
 
 import Home from "../pages/Homepg/HomePg.jsx";
-import About from "../pages/About";
-import Events from "../pages/Events";
+import About from "../pages/AboutPg/AboutPage.jsx";
+import Events from "../pages/EventsPg/EventsPage.jsx";
 import Committee from "../pages/Committee";
 import Activities from "../pages/Activities";
 import Achievements from "../pages/Achievements";

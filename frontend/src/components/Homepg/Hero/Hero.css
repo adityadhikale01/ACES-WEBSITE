@@ -1,0 +1,218 @@
+.hero {
+  min-height: 92vh;
+  position: relative;
+
+  display: grid;
+  grid-template-columns: 1fr 0.9fr;
+  align-items: center;
+  gap: 70px;
+
+  padding: 100px 7vw 80px;
+
+  background: #050b14;
+  color: #fff;
+
+  overflow: hidden;
+}
+
+/* ---------------- CONTENT ---------------- */
+
+.hero__content {
+  max-width: 720px;
+}
+
+.hero__eyebrow {
+  margin: 0 0 28px;
+
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.hero__title {
+  margin: 0;
+
+  font-size: clamp(4.5rem, 8vw, 8rem);
+  line-height: 0.86;
+  letter-spacing: -0.07em;
+  font-weight: 600;
+}
+
+.hero__title span {
+  color: #3b82f6;
+}
+
+.hero__description {
+  max-width: 480px;
+
+  margin: 35px 0 0;
+
+  font-size: 1rem;
+  line-height: 1.7;
+
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ---------------- ACTIONS ---------------- */
+
+.hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+
+  margin-top: 35px;
+}
+
+.hero__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 13px 18px;
+
+  background: #2563eb;
+  color: #fff;
+
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+
+  text-decoration: none;
+
+  transition: 0.25s ease;
+}
+
+.hero__button:hover {
+  background: #3b82f6;
+  transform: translateY(-2px);
+}
+
+.hero__scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: rgba(255, 255, 255, 0.4);
+
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+
+  text-decoration: none;
+}
+
+.hero__scroll:hover {
+  color: #fff;
+}
+
+/* ---------------- TEAM IMAGE ---------------- */
+
+.hero__image {
+  width: 800px;
+  height: 500px;
+
+  overflow: hidden;
+
+  border-radius: 2px;
+
+  background: #0b1422;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hero__image img {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+
+  transition: transform 0.6s ease;
+}
+
+.hero__image:hover img {
+  transform: scale(1.02);
+}
+
+/* ---------------- BOTTOM ---------------- */
+
+.hero__bottom {
+  position: absolute;
+
+  left: 7vw;
+  right: 7vw;
+  bottom: 28px;
+
+  display: flex;
+  justify-content: space-between;
+
+  padding-top: 16px;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  font-size: 0.62rem;
+  letter-spacing: 0.15em;
+
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ---------------- TABLET ---------------- */
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 55px;
+
+    padding: 100px 6vw 100px;
+  }
+
+  .hero__image {
+    height: 400px;
+  }
+
+  .hero__bottom {
+    left: 6vw;
+    right: 6vw;
+  }
+}
+
+/* ---------------- MOBILE ---------------- */
+
+@media (max-width: 600px) {
+  .hero {
+    padding: 90px 24px 90px;
+  }
+
+  .hero__title {
+    font-size: clamp(4rem, 20vw, 6rem);
+  }
+
+  .hero__eyebrow {
+    font-size: 0.58rem;
+    line-height: 1.5;
+  }
+
+  .hero__description {
+    font-size: 0.9rem;
+  }
+
+  .hero__actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero__image {
+    height: 300px;
+    display: none;
+  }
+
+  .hero__bottom {
+    left: 24px;
+    right: 24px;
+    bottom: 20px;
+
+    font-size: 0.5rem;
+  }
+}

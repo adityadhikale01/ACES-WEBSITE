@@ -1,15 +1,13 @@
+import Hero from "../../components/Homepg/Hero/Hero.jsx";
+import AboutAces from "../../components/Homepg/AboutAces/AboutAces.jsx";
+import AcesNumbers from "../../components/Homepg/AcesNumbers/AcesNumbers.jsx";
 function Home() {
   return (
     <section
-      style={{
-        minHeight: "100vh",
-        background: "#050507",
-        color: "white",
-        display: "grid",
-        placeItems: "center",
-      }}
     >
-      <h1>ACES — Where Ideas Become Impact.</h1>
+      <Hero />
+      <AboutAces />
+      <AcesNumbers />
     </section>
   );
 }

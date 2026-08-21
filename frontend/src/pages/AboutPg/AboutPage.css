@@ -1,0 +1,549 @@
+.about-page {
+  background: #050b14;
+  color: #fff;
+}
+
+
+/* =====================================================
+   COMMON
+===================================================== */
+
+.about-page__section-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  font-size: 0.65rem;
+  letter-spacing: 0.16em;
+
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.about-page__section-label span:first-child {
+  color: #3b82f6;
+}
+
+
+/* =====================================================
+   HERO
+===================================================== */
+
+.about-page__hero {
+  min-height: 85vh;
+
+  padding: 150px 7vw 100px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.about-page__hero-top {
+  display: flex;
+  justify-content: space-between;
+
+  padding-bottom: 22px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  font-size: 0.65rem;
+  letter-spacing: 0.16em;
+
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.about-page__hero-content {
+  margin-top: 120px;
+}
+
+.about-page__eyebrow {
+  margin: 0 0 30px;
+
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.about-page__hero h1 {
+  margin: 0;
+
+  font-size: clamp(5rem, 11vw, 11rem);
+  line-height: 0.82;
+
+  letter-spacing: -0.08em;
+  font-weight: 600;
+}
+
+.about-page__hero h1 span {
+  color: #3b82f6;
+}
+
+.about-page__hero-description {
+  max-width: 480px;
+
+  margin: 55px 0 0 auto;
+
+  display: flex;
+  gap: 20px;
+}
+
+.about-page__line {
+  width: 35px;
+  height: 1px;
+
+  margin-top: 10px;
+
+  background: #3b82f6;
+
+  flex-shrink: 0;
+}
+
+.about-page__hero-description p {
+  margin: 0;
+
+  font-size: 1rem;
+  line-height: 1.7;
+
+  color: rgba(255, 255, 255, 0.5);
+}
+
+
+/* =====================================================
+   INTRO
+===================================================== */
+
+.about-page__intro {
+  padding: 120px 7vw;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__intro-content {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr;
+  gap: 100px;
+
+  margin-top: 80px;
+}
+
+.about-page__intro h2 {
+  margin: 0;
+
+  font-size: clamp(3rem, 5vw, 5.5rem);
+  line-height: 0.95;
+
+  letter-spacing: -0.06em;
+  font-weight: 500;
+}
+
+.about-page__intro h2 span {
+  color: #3b82f6;
+}
+
+.about-page__intro-text {
+  max-width: 500px;
+}
+
+.about-page__intro-text p {
+  margin: 0 0 25px;
+
+  font-size: 0.95rem;
+  line-height: 1.8;
+
+  color: rgba(255, 255, 255, 0.5);
+}
+
+
+/* =====================================================
+   VISION
+===================================================== */
+
+.about-page__vision {
+  padding: 120px 7vw;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__vision-content {
+  max-width: 1100px;
+
+  margin: 100px auto 0;
+}
+
+.about-page__quote {
+  margin: 0;
+
+  font-size: clamp(2.5rem, 5vw, 5rem);
+  line-height: 1.05;
+
+  letter-spacing: -0.05em;
+  font-weight: 500;
+}
+
+.about-page__quote span {
+  color: #3b82f6;
+}
+
+.about-page__vision-meta {
+  margin-top: 60px;
+
+  padding-top: 20px;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+
+  color: rgba(255, 255, 255, 0.35);
+}
+
+
+/* =====================================================
+   PILLARS
+===================================================== */
+
+.about-page__pillars {
+  padding: 120px 7vw;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__pillars-intro {
+  display: grid;
+  grid-template-columns: 1fr 0.6fr;
+
+  gap: 100px;
+
+  margin: 80px 0;
+}
+
+.about-page__pillars-intro h2 {
+  margin: 0;
+
+  font-size: clamp(4rem, 7vw, 7rem);
+  line-height: 0.85;
+
+  letter-spacing: -0.07em;
+}
+
+.about-page__pillars-intro h2 span {
+  color: #3b82f6;
+}
+
+.about-page__pillars-intro p {
+  max-width: 400px;
+
+  align-self: end;
+
+  margin: 0;
+
+  font-size: 0.95rem;
+  line-height: 1.7;
+
+  color: rgba(255, 255, 255, 0.45);
+}
+
+
+/* Pillar */
+
+.about-page__pillar-list {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__pillar {
+  position: relative;
+
+  display: grid;
+  grid-template-columns: 80px 1fr 40px;
+
+  gap: 40px;
+
+  padding: 50px 0;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  transition: padding 0.3s ease;
+}
+
+.about-page__pillar:hover {
+  padding-left: 15px;
+}
+
+.about-page__pillar-number {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+
+  color: #3b82f6;
+}
+
+.about-page__pillar-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.about-page__pillar-heading h3 {
+  margin: 0;
+
+  font-size: clamp(2rem, 4vw, 4rem);
+
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.about-page__pillar-heading span {
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.about-page__pillar-description {
+  max-width: 600px;
+
+  margin: 20px 0;
+
+  font-size: 0.9rem;
+  line-height: 1.7;
+
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.about-page__pillar-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.about-page__pillar-details span {
+  padding: 7px 10px;
+
+  border: 1px solid rgba(255, 255, 255, 0.1);
+
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.about-page__pillar-arrow {
+  color: rgba(255, 255, 255, 0.35);
+
+  transition:
+    color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.about-page__pillar:hover .about-page__pillar-arrow {
+  color: #3b82f6;
+  transform: translate(4px, -4px);
+}
+
+
+/* =====================================================
+   WHAT WE DO
+===================================================== */
+
+.about-page__work {
+  padding: 120px 7vw;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__work-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  gap: 120px;
+
+  margin-top: 90px;
+}
+
+.about-page__work h2 {
+  margin: 0;
+
+  font-size: clamp(4rem, 7vw, 7rem);
+  line-height: 0.85;
+
+  letter-spacing: -0.07em;
+}
+
+.about-page__work h2 span {
+  color: #3b82f6;
+}
+
+.about-page__work-list {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__work-list div {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+
+  padding: 22px 0;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__work-list span {
+  font-size: 0.6rem;
+  color: #3b82f6;
+}
+
+.about-page__work-list p {
+  margin: 0;
+
+  font-size: 0.9rem;
+
+  color: rgba(255, 255, 255, 0.65);
+}
+
+
+/* =====================================================
+   CLOSING
+===================================================== */
+
+.about-page__closing {
+  padding: 180px 7vw;
+
+  text-align: center;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-page__closing > p {
+  margin: 0 0 40px;
+
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.about-page__closing h2 {
+  margin: 0;
+
+  font-size: clamp(5rem, 12vw, 12rem);
+  line-height: 0.8;
+
+  letter-spacing: -0.08em;
+}
+
+.about-page__closing h2 span {
+  color: #3b82f6;
+}
+
+.about-page__closing a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-top: 55px;
+
+  color: #fff;
+
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+
+  text-decoration: none;
+}
+
+.about-page__closing a:hover {
+  color: #3b82f6;
+}
+
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 900px) {
+  .about-page__hero {
+    min-height: auto;
+    padding: 130px 6vw 100px;
+  }
+
+  .about-page__hero-content {
+    margin-top: 90px;
+  }
+
+  .about-page__intro,
+  .about-page__vision,
+  .about-page__pillars,
+  .about-page__work {
+    padding: 90px 6vw;
+  }
+
+  .about-page__intro-content,
+  .about-page__pillars-intro,
+  .about-page__work-grid {
+    grid-template-columns: 1fr;
+    gap: 50px;
+  }
+
+  .about-page__pillar {
+    grid-template-columns: 60px 1fr 30px;
+    gap: 20px;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .about-page__hero {
+    padding: 120px 24px 80px;
+  }
+
+  .about-page__hero-top {
+    font-size: 0.55rem;
+  }
+
+  .about-page__hero-content {
+    margin-top: 70px;
+  }
+
+  .about-page__hero h1 {
+    font-size: clamp(4rem, 19vw, 6rem);
+  }
+
+  .about-page__hero-description {
+    margin-top: 45px;
+  }
+
+  .about-page__intro,
+  .about-page__vision,
+  .about-page__pillars,
+  .about-page__work {
+    padding: 75px 24px;
+  }
+
+  .about-page__intro-content,
+  .about-page__pillars-intro,
+  .about-page__work-grid {
+    margin-top: 55px;
+  }
+
+  .about-page__pillar {
+    grid-template-columns: 35px 1fr 20px;
+    gap: 12px;
+    padding: 35px 0;
+  }
+
+  .about-page__pillar-heading {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .about-page__pillar-details {
+    gap: 5px;
+  }
+
+  .about-page__pillar-details span {
+    font-size: 0.5rem;
+  }
+
+  .about-page__closing {
+    padding: 120px 24px;
+  }
+}

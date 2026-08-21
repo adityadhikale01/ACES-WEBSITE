@@ -1,0 +1,198 @@
+.aces-numbers {
+  background: #050b14;
+  color: #fff;
+  padding: 100px 7vw;
+}
+
+.aces-numbers__container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header */
+
+.aces-numbers__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding-bottom: 22px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+  font-size: 0.65rem;
+  letter-spacing: 0.16em;
+
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Numbers */
+
+.aces-numbers__inner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.aces-number {
+  position: relative;
+
+  min-height: 260px;
+
+  padding: 45px 32px 32px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+
+  transition: background 0.3s ease;
+}
+
+.aces-number:last-child {
+  border-right: none;
+}
+
+.aces-number:hover {
+  background: rgba(59, 130, 246, 0.035);
+}
+
+/* Number */
+
+.aces-number__value {
+  font-size: clamp(4.5rem, 7vw, 7rem);
+  line-height: 0.85;
+
+  font-weight: 600;
+
+  letter-spacing: -0.07em;
+
+  color: #fff;
+
+  transition: color 0.3s ease;
+}
+
+.aces-number:hover .aces-number__value {
+  color: #3b82f6;
+}
+
+/* Label */
+
+.aces-number__label {
+  max-width: 160px;
+
+  font-size: 0.62rem;
+  line-height: 1.5;
+
+  font-weight: 500;
+
+  letter-spacing: 0.14em;
+
+  color: rgba(255, 255, 255, 0.38);
+}
+
+/* Small blue indicator */
+
+.aces-number::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: 32px;
+
+  width: 22px;
+  height: 2px;
+
+  background: #3b82f6;
+
+  opacity: 0;
+
+  transition: opacity 0.3s ease;
+}
+
+.aces-number:hover::before {
+  opacity: 1;
+}
+
+/* Footer */
+
+.aces-numbers__footer {
+  display: flex;
+  justify-content: space-between;
+
+  margin-top: 24px;
+
+  font-size: 0.6rem;
+
+  letter-spacing: 0.15em;
+
+  color: rgba(255, 255, 255, 0.3);
+}
+
+
+/* Tablet */
+
+@media (max-width: 900px) {
+  .aces-numbers {
+    padding: 85px 6vw;
+  }
+
+  .aces-numbers__inner {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .aces-number {
+    min-height: 210px;
+  }
+
+  .aces-number:nth-child(2) {
+    border-right: none;
+  }
+
+  .aces-number:nth-child(-n + 2) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .aces-numbers {
+    padding: 75px 24px;
+  }
+
+  .aces-numbers__header {
+    font-size: 0.55rem;
+  }
+
+  .aces-numbers__inner {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .aces-number {
+    min-height: 175px;
+
+    padding: 30px 20px;
+  }
+
+  .aces-number__value {
+    font-size: 3.5rem;
+  }
+
+  .aces-number__label {
+    font-size: 0.55rem;
+    letter-spacing: 0.1em;
+  }
+
+  .aces-number::before {
+    left: 20px;
+  }
+
+  .aces-numbers__footer {
+    font-size: 0.5rem;
+  }
+}
