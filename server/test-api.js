@@ -217,6 +217,7 @@ const runTests = async () => {
     const desgData = await desgRes.json();
     assert(desgRes.status === 200 && Array.isArray(desgData.designations), `GET /api/v1/designations returns ${desgData.designations?.length || 0} active designations`);
 
+    const desgTitle = `Lead Cloud Architect ${Date.now()}`;
     const newDesgRes = await fetch(`${baseUrl}/api/v1/designations`, {
       method: 'POST',
       headers: {
@@ -224,14 +225,14 @@ const runTests = async () => {
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
-        title: 'Lead Cloud Architect',
+        title: desgTitle,
         tier: 'CORE_OFFICER',
         displayOrder: 15,
         description: 'Oversees departmental cloud infrastructure and deployments',
       }),
     });
     const newDesgData = await newDesgRes.json();
-    assert(newDesgRes.status === 201 && newDesgData.designation?.title === 'Lead Cloud Architect', 'Admin creates a configurable club designation');
+    assert(newDesgRes.status === 201 && newDesgData.designation?.title === desgTitle, 'Admin creates a configurable club designation');
 
     // 17. Paid Event Registration & Manual Payment Verification Workflow
     const paidEvent = eventsData.events?.find((e) => e.isPaid) || eventsData.events?.[0];
