@@ -2,6 +2,16 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export type RegistrationStatus = 'REGISTERED' | 'WAITLISTED' | 'CANCELLED' | 'ATTENDED';
 
+export type RegistrationPaymentStatus =
+  | 'FREE'
+  | 'AWAITING_PAYMENT'
+  | 'PROOF_SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'RESUBMISSION_REQUESTED'
+  | 'CANCELLED';
+
 export interface IEventRegistration extends Document {
   eventId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
@@ -14,6 +24,13 @@ export interface IEventRegistration extends Document {
   registrationDate: Date;
   status: RegistrationStatus;
   notes?: string;
+
+  // Payment Tracking
+  isPaidEvent: boolean;
+  amountDue: number; // in integer paise
+  paymentStatus: RegistrationPaymentStatus;
+  paymentSubmissionId?: mongoose.Types.ObjectId;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +53,25 @@ const EventRegistrationSchema = new Schema<IEventRegistration>(
       index: true,
     },
     notes: { type: String },
+
+    isPaidEvent: { type: Boolean, default: false },
+    amountDue: { type: Number, default: 0 },
+    paymentStatus: {
+      type: String,
+      enum: [
+        'FREE',
+        'AWAITING_PAYMENT',
+        'PROOF_SUBMITTED',
+        'UNDER_REVIEW',
+        'VERIFIED',
+        'REJECTED',
+        'RESUBMISSION_REQUESTED',
+        'CANCELLED',
+      ],
+      default: 'FREE',
+      index: true,
+    },
+    paymentSubmissionId: { type: Schema.Types.ObjectId, ref: 'PaymentSubmission' },
   },
   {
     timestamps: true,

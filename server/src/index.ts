@@ -3,13 +3,17 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import path from 'path';
 import { connectDB, getDBStatus } from './config/db.js';
 import { seedDatabase } from './seed/seedData.js';
+import { getStorageStatus } from './services/storageService.js';
 
 // Route imports
 import authRoutes from './routes/authRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import registrationRoutes from './routes/registrationRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import designationRoutes from './routes/designationRoutes.js';
 import membershipRoutes from './routes/membershipRoutes.js';
 import teamRoutes from './routes/teamRoutes.js';
 import activityRoutes from './routes/activityRoutes.js';
@@ -35,11 +39,10 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
       if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.netlify.app')) {
         callback(null, true);
       } else {
-        callback(null, true); // Permissive in dev/testing
+        callback(null, true);
       }
     },
     credentials: true,
@@ -51,6 +54,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
+// Serve public uploads safely
+app.use('/uploads/public', express.static(path.join(process.cwd(), 'uploads', 'public')));
+
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
@@ -58,6 +64,7 @@ app.get('/health', (_req: Request, res: Response) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     database: getDBStatus(),
+    storage: getStorageStatus(),
   });
 });
 
@@ -65,8 +72,9 @@ app.get('/api/v1/health', (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     service: 'ACES KBTCOE Backend API',
-    version: '1.0.0',
+    version: '1.1.0',
     database: getDBStatus(),
+    storage: getStorageStatus(),
   });
 });
 
@@ -74,6 +82,8 @@ app.get('/api/v1/health', (_req: Request, res: Response) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/events', eventRoutes);
 app.use('/api/v1/registrations', registrationRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/designations', designationRoutes);
 app.use('/api/v1/applications', membershipRoutes);
 app.use('/api/v1/team', teamRoutes);
 app.use('/api/v1/activities', activityRoutes);
@@ -118,6 +128,7 @@ const startServer = async () => {
     console.log(`📡 URL: http://localhost:${PORT}/api/v1`);
     console.log(`🏥 Health Check: http://localhost:${PORT}/health`);
     console.log(`💾 Database Status: ${getDBStatus().state}`);
+    console.log(`☁️ Cloudinary Status: ${getStorageStatus().cloudinary ? 'Active' : 'Local Fallback'}`);
     console.log(`====================================================`);
   });
 };

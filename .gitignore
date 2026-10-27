@@ -19,3 +19,9 @@ npm-debug.log*
 # System files
 .DS_Store
 Thumbs.db
+
+# Uploads & Runtime Storage
+server/uploads/
+uploads/
+credentials/
+*.json.key

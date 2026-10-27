@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   User,
   Calendar,
@@ -15,10 +15,15 @@ import {
   FileText,
   Edit2,
   Save,
+  CreditCard,
+  UploadCloud,
+  X,
+  Info,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { api } from '../services/api.js';
-import { EventRegistration, MembershipApplication } from '../types/index.js';
+import { EventRegistration, MembershipApplication, PaymentSubmission } from '../types/index.js';
 
 export const MemberDashboard: React.FC = () => {
   const { user, isAuthenticated, isAdmin, logout, refreshUser } = useAuth();
@@ -26,6 +31,7 @@ export const MemberDashboard: React.FC = () => {
 
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [application, setApplication] = useState<MembershipApplication | null>(null);
+  const [myPayments, setMyPayments] = useState<PaymentSubmission[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Profile Edit modal
@@ -36,33 +42,44 @@ export const MemberDashboard: React.FC = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
 
+  // Payment Proof Submission Modal
+  const [paymentModalReg, setPaymentModalReg] = useState<EventRegistration | null>(null);
+  const [utrInput, setUtrInput] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [proofSuccess, setProofSuccess] = useState(false);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [regRes, appRes, payRes] = await Promise.all([
+        api.registrations.getMyRegistrations(),
+        api.applications.getMyApplication(),
+        api.payments.getMyPayments(),
+      ]);
+
+      if (regRes.success && regRes.registrations) {
+        setRegistrations(regRes.registrations);
+      }
+      if (appRes.success && appRes.application) {
+        setApplication(appRes.application);
+      }
+      if (payRes.success && payRes.submissions) {
+        setMyPayments(payRes.submissions);
+      }
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
-
-    const loadDashboardData = async () => {
-      try {
-        setLoading(true);
-        const [regRes, appRes] = await Promise.all([
-          api.registrations.getMyRegistrations(),
-          api.applications.getMyApplication(),
-        ]);
-
-        if (regRes.success && regRes.registrations) {
-          setRegistrations(regRes.registrations);
-        }
-        if (appRes.success && appRes.application) {
-          setApplication(appRes.application);
-        }
-      } catch (err) {
-        console.error('Dashboard load error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadDashboardData();
   }, [isAuthenticated, navigate]);
 
@@ -99,6 +116,39 @@ export const MemberDashboard: React.FC = () => {
       alert(err.message || 'Failed to update profile');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSubmitProof = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentModalReg) return;
+    if (!utrInput.trim() || utrInput.trim().length < 4) {
+      setProofError('Please enter a valid Transaction ID / UTR reference (min 4 characters).');
+      return;
+    }
+    if (!screenshotFile) {
+      setProofError('Please select a payment screenshot / receipt image.');
+      return;
+    }
+
+    try {
+      setSubmittingProof(true);
+      setProofError(null);
+
+      const formData = new FormData();
+      formData.append('registrationId', paymentModalReg._id);
+      formData.append('utrReference', utrInput.trim());
+      formData.append('screenshot', screenshotFile);
+
+      const res = await api.payments.submitProof(formData);
+      if (res.success) {
+        setProofSuccess(true);
+        loadDashboardData();
+      }
+    } catch (err: any) {
+      setProofError(err.message || 'Failed to submit payment proof');
+    } finally {
+      setSubmittingProof(false);
     }
   };
 
@@ -169,12 +219,12 @@ export const MemberDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Profile Edit Drawer / Card */}
+        {/* Profile Edit Drawer */}
         {isEditing && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="p-6 rounded-3xl bg-navy-850 border border-slate-700/80 mb-8 max-w-xl"
+            className="p-6 rounded-3xl bg-navy-900 border border-slate-700/80 mb-8 max-w-xl"
           >
             <h3 className="text-sm font-bold text-white mb-4">Update Profile Details</h3>
             <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
@@ -273,6 +323,11 @@ export const MemberDashboard: React.FC = () => {
                 {registrations.map((reg) => {
                   const ev = typeof reg.eventId === 'object' ? reg.eventId : null;
                   const isCancelled = reg.status === 'CANCELLED';
+                  const isPaidEvent = reg.isPaidEvent || (ev && ev.isPaid);
+                  const paymentSubmission = myPayments.find((p) => {
+                    const regId = typeof p.registrationId === 'object' ? (p.registrationId as any)._id : p.registrationId;
+                    return regId === reg._id;
+                  });
 
                   return (
                     <div
@@ -283,20 +338,47 @@ export const MemberDashboard: React.FC = () => {
                           : 'glass-card border-white/10'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span
                               className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
                                 reg.status === 'ATTENDED'
                                   ? 'bg-emerald-500/20 text-emerald-300'
                                   : reg.status === 'REGISTERED'
                                   ? 'bg-electric-blue/20 text-electric-cyan'
-                                  : 'bg-rose-500/20 text-rose-300'
+                                  : 'bg-amber-500/20 text-amber-300'
                               }`}
                             >
                               {reg.status}
                             </span>
+
+                            {isPaidEvent ? (
+                              <span
+                                className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                                  reg.paymentStatus === 'VERIFIED'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                    : reg.paymentStatus === 'PROOF_SUBMITTED' || reg.paymentStatus === 'UNDER_REVIEW'
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                    : reg.paymentStatus === 'REJECTED'
+                                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}
+                              >
+                                {reg.paymentStatus === 'VERIFIED'
+                                  ? 'Payment Verified ✓'
+                                  : reg.paymentStatus === 'PROOF_SUBMITTED'
+                                  ? 'Proof Under Review ⏳'
+                                  : reg.paymentStatus === 'REJECTED'
+                                  ? 'Proof Rejected ✕'
+                                  : 'Payment Proof Required'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-white/5 text-slate-400">
+                                Free Entry
+                              </span>
+                            )}
+
                             {ev?.category && (
                               <span className="text-[10px] text-slate-400 uppercase font-medium">
                                 • {ev.category}
@@ -328,24 +410,55 @@ export const MemberDashboard: React.FC = () => {
                               </div>
                             )}
                           </div>
+
+                          {/* Rejection / Resubmission notice banner */}
+                          {paymentSubmission?.status === 'REJECTED' && paymentSubmission.rejectionReason && (
+                            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs mt-2">
+                              <strong>Rejection Feedback from Admin:</strong>
+                              <p className="mt-0.5 text-slate-300">{paymentSubmission.rejectionReason}</p>
+                            </div>
+                          )}
+
+                          {paymentSubmission?.status === 'PROOF_SUBMITTED' && (
+                            <div className="text-[11px] text-slate-400 mt-1">
+                              Submitted UTR: <span className="font-mono text-cyan-300">{paymentSubmission.utrReference}</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                          {isPaidEvent &&
+                            reg.paymentStatus !== 'VERIFIED' &&
+                            reg.paymentStatus !== 'PROOF_SUBMITTED' && (
+                              <button
+                                onClick={() => {
+                                  setPaymentModalReg(reg);
+                                  setUtrInput('');
+                                  setScreenshotFile(null);
+                                  setProofError(null);
+                                  setProofSuccess(false);
+                                }}
+                                className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
+                              >
+                                {reg.paymentStatus === 'REJECTED' ? 'Resubmit Proof' : 'Upload Payment Proof'}
+                              </button>
+                            )}
+
                           {ev?.slug && (
                             <Link
                               to={`/events/${ev.slug}`}
-                              className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10"
+                              className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10"
                             >
-                              Event Page
+                              Details
                             </Link>
                           )}
                           {!isCancelled && (
                             <button
                               onClick={() => handleCancelRegistration(reg._id)}
-                              className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20"
+                              className="px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20"
                             >
-                              Cancel Seat
+                              Cancel
                             </button>
                           )}
                         </div>
@@ -357,7 +470,7 @@ export const MemberDashboard: React.FC = () => {
             )}
           </div>
 
-          {/* Right Column: Membership Card & Guidance */}
+          {/* Right Column: Club Membership Application Status */}
           <div className="lg:col-span-4 space-y-6">
             <div className="glass-card p-6 rounded-3xl border border-white/10 space-y-5">
               <h3 className="text-base font-bold text-white border-b border-white/5 pb-3 flex items-center gap-2">
@@ -366,17 +479,17 @@ export const MemberDashboard: React.FC = () => {
               </h3>
 
               {user.isApprovedMember ? (
-                <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 space-y-2 text-xs">
-                  <div className="flex items-center gap-2 font-bold text-sm">
+                <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wide">
                     <CheckCircle2 size={16} />
-                    <span>Official ACES Member</span>
+                    <span>Official Member</span>
                   </div>
-                  <p className="text-emerald-200/90 leading-relaxed">
-                    You have active membership privileges for the 2026-27 academic term.
+                  <p className="text-xs text-emerald-200/90 leading-relaxed">
+                    You have active departmental club privileges. You are eligible for exclusive member-only workshops and mentorship circles.
                   </p>
                 </div>
               ) : application ? (
-                <div className="space-y-3 text-xs">
+                <div className="space-y-4">
                   <div
                     className={`p-4 rounded-2xl border ${
                       application.status === 'APPROVED'
@@ -386,27 +499,36 @@ export const MemberDashboard: React.FC = () => {
                         : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
                     }`}
                   >
-                    <span className="text-[10px] font-bold uppercase tracking-wider block mb-1">
-                      Submitted Application Status
-                    </span>
-                    <strong className="block text-sm font-bold">{application.status}</strong>
-                    <p className="mt-1 leading-relaxed text-slate-300">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">
+                        Application Status
+                      </span>
+                      <span className="text-xs font-bold">{application.status}</span>
+                    </div>
+                    <p className="text-xs leading-relaxed opacity-90">
                       {application.status === 'PENDING'
-                        ? 'Your submission is queued for committee review.'
-                        : application.adminNotes || 'Review complete.'}
+                        ? 'Your application is under review by the ACES Faculty Coordinator and President.'
+                        : application.status === 'APPROVED'
+                        ? 'Your application has been accepted! Welcome to ACES.'
+                        : 'Your application could not be approved at this time.'}
                     </p>
+                    {application.adminNotes && (
+                      <div className="mt-2 text-[11px] pt-2 border-t border-white/10">
+                        <strong>Review Note:</strong> {application.adminNotes}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 text-xs text-slate-300">
-                  <p className="leading-relaxed">
-                    You haven't applied for official club membership yet. Becoming an approved member grants priority event registration, leadership roles, and hackathon project support.
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Join the ACES KBTCOE departmental committee network to organize events, lead technical workshops, and collaborate with peers.
                   </p>
                   <Link
                     to="/join"
-                    className="block text-center py-3 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white font-bold shadow-lg"
+                    className="block w-full py-2.5 rounded-xl bg-electric-blue text-center text-white text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-electric-blue/20"
                   >
-                    Apply for Membership Now →
+                    Apply for Club Membership →
                   </Link>
                 </div>
               )}
@@ -414,6 +536,129 @@ export const MemberDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Payment Proof Submission Modal */}
+      <AnimatePresence>
+        {paymentModalReg && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-navy-900 border border-slate-700/80 shadow-2xl relative"
+            >
+              <button
+                onClick={() => setPaymentModalReg(null)}
+                className="absolute top-5 right-5 text-slate-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+
+              {proofSuccess ? (
+                <div className="py-6 text-center space-y-4">
+                  <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/40">
+                    <CheckCircle2 size={30} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white">Payment Proof Submitted!</h3>
+                  <p className="text-xs text-slate-300">
+                    Your UTR reference and receipt have been transmitted securely to the ACES administration team. Your registration status will update to <strong>REGISTERED</strong> once verified.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setPaymentModalReg(null);
+                      setProofSuccess(false);
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-electric-blue text-white text-xs font-semibold"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitProof} className="space-y-4 text-xs">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Submit Payment Proof</h3>
+                    <p className="text-slate-400 text-xs">
+                      {typeof paymentModalReg.eventId === 'object'
+                        ? (paymentModalReg.eventId as any).title
+                        : 'Departmental Paid Event'}
+                    </p>
+                  </div>
+
+                  {proofError && (
+                    <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs">
+                      {proofError}
+                    </div>
+                  )}
+
+                  {/* Payment Info Card */}
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Expected Fee:</span>
+                      <span className="font-bold text-amber-300 text-sm">
+                        ₹{(paymentModalReg.amountDue / 100).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-semibold">Pay via UPI to:</span>
+                      <span className="font-mono text-cyan-300 font-bold">aceskbtcoe@okaxis</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 pt-1">
+                      Pay using GPay, PhonePe, Paytm, or BHIM, then enter the 12-digit UTR reference below and upload a screenshot of your successful transaction.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">
+                      Transaction UTR / Reference ID *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g., 402812345678"
+                      value={utrInput}
+                      onChange={(e) => setUtrInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono placeholder-slate-600 focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">
+                      Upload Screenshot / Receipt *
+                    </label>
+                    <input
+                      type="file"
+                      required
+                      accept="image/*,application/pdf"
+                      onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-electric-blue file:text-white"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Receipts are stored in private secure storage and accessible solely to authorized administrators.
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentModalReg(null)}
+                      className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 text-xs font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingProof}
+                      className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-electric-blue/20"
+                    >
+                      {submittingProof ? 'Transmitting...' : 'Submit Verification Proof'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

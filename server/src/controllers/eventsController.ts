@@ -33,6 +33,15 @@ export const eventSchema = z.object({
   status: z.enum(['DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED']).default('PUBLISHED'),
   isFeatured: z.boolean().default(false),
   organizerInfo: z.string().default('ACES KBTCOE Committee'),
+
+  // Paid event configurations
+  isPaid: z.boolean().default(false),
+  fee: z.number().default(0), // in integer paise (e.g. 15000 = Rs. 150)
+  paymentInstructions: z.string().optional(),
+  paymentUpiId: z.string().optional(),
+  paymentQrUrl: z.string().optional(),
+  refundPolicy: z.string().optional(),
+  paymentDeadline: z.string().or(z.date()).optional(),
 });
 
 export const getEvents = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -81,7 +90,7 @@ export const getEventBySlug = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    // Check if the current user is registered for this event
+    // Check if current user is registered for this event
     let isRegistered = false;
     let userRegistration = null;
 
@@ -89,8 +98,8 @@ export const getEventBySlug = async (req: AuthRequest, res: Response): Promise<v
       userRegistration = await EventRegistration.findOne({
         eventId: event._id,
         userId: req.user._id,
-        status: { $in: ['REGISTERED', 'ATTENDED'] },
-      });
+        status: { $in: ['REGISTERED', 'WAITLISTED', 'ATTENDED'] },
+      }).populate('paymentSubmissionId');
       isRegistered = !!userRegistration;
     }
 

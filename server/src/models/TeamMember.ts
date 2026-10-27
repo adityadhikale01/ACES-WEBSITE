@@ -4,6 +4,7 @@ export type TeamTier = 'FACULTY' | 'PRESIDENT' | 'VICE_PRESIDENT' | 'EXECUTIVE' 
 
 export interface ITeamMember extends Document {
   name: string;
+  designationId?: mongoose.Types.ObjectId;
   role: string;
   tier: TeamTier;
   department: string;
@@ -14,6 +15,7 @@ export interface ITeamMember extends Document {
   githubUrl?: string;
   displayOrder: number;
   isActive: boolean;
+  isPublished: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +23,7 @@ export interface ITeamMember extends Document {
 const TeamMemberSchema = new Schema<ITeamMember>(
   {
     name: { type: String, required: true, trim: true },
+    designationId: { type: Schema.Types.ObjectId, ref: 'Designation' },
     role: { type: String, required: true, trim: true },
     tier: {
       type: String,
@@ -36,6 +39,7 @@ const TeamMemberSchema = new Schema<ITeamMember>(
     githubUrl: { type: String },
     displayOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true, index: true },
+    isPublished: { type: Boolean, default: true, index: true },
   },
   {
     timestamps: true,

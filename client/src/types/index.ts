@@ -47,8 +47,28 @@ export interface EventItem {
   status: EventStatus;
   isFeatured: boolean;
   organizerInfo?: string;
+
+  // Paid Event Support (fee in integer paise)
+  isPaid: boolean;
+  fee: number; // e.g. 20000 = ₹200.00
+  paymentInstructions?: string;
+  paymentUpiId?: string;
+  paymentQrUrl?: string;
+  refundPolicy?: string;
+  paymentDeadline?: string;
+
   createdAt: string;
 }
+
+export type RegistrationPaymentStatus =
+  | 'FREE'
+  | 'AWAITING_PAYMENT'
+  | 'PROOF_SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'RESUBMISSION_REQUESTED'
+  | 'CANCELLED';
 
 export interface EventRegistration {
   _id: string;
@@ -62,6 +82,53 @@ export interface EventRegistration {
   registrationDate: string;
   status: 'REGISTERED' | 'WAITLISTED' | 'CANCELLED' | 'ATTENDED';
   notes?: string;
+
+  // Payment Tracking
+  isPaidEvent: boolean;
+  amountDue: number; // paise
+  paymentStatus: RegistrationPaymentStatus;
+  paymentSubmissionId?: PaymentSubmission | string;
+}
+
+export interface PaymentAuditEntry {
+  action: string;
+  performedBy: string;
+  timestamp: string;
+  notes?: string;
+}
+
+export interface PaymentSubmission {
+  _id: string;
+  registrationId: EventRegistration | string;
+  userId: User | string;
+  eventId: EventItem | string;
+  expectedAmount: number; // paise
+  currency: string;
+  utrReference: string;
+  screenshotKey: string;
+  screenshotMimeType: string;
+  screenshotOriginalName: string;
+  screenshotSizeBytes: number;
+  submittedAt: string;
+  status: 'PROOF_SUBMITTED' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED' | 'RESUBMISSION_REQUESTED';
+  adminDecisionBy?: string;
+  adminNotes?: string;
+  rejectionReason?: string;
+  verifiedAt?: string;
+  auditHistory: PaymentAuditEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Designation {
+  _id: string;
+  title: string;
+  tier: 'FACULTY' | 'PRESIDENT' | 'VICE_PRESIDENT' | 'EXECUTIVE' | 'CORE_OFFICER' | 'COMMITTEE' | 'OTHER';
+  displayOrder: number;
+  isRetired: boolean;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface MembershipApplication {
@@ -85,6 +152,7 @@ export type TeamTier = 'FACULTY' | 'PRESIDENT' | 'VICE_PRESIDENT' | 'EXECUTIVE' 
 export interface TeamMember {
   _id: string;
   name: string;
+  designationId?: Designation | string;
   role: string;
   tier: TeamTier;
   department: string;
@@ -95,6 +163,7 @@ export interface TeamMember {
   githubUrl?: string;
   displayOrder: number;
   isActive: boolean;
+  isPublished: boolean;
 }
 
 export interface ActivityItem {
@@ -107,6 +176,34 @@ export interface ActivityItem {
   tags: string[];
   displayOrder: number;
   featured: boolean;
+}
+
+export interface GalleryMediaItem {
+  _id: string;
+  mediaType: 'IMAGE' | 'VIDEO';
+  url: string;
+  cloudinaryPublicId?: string;
+  caption?: string;
+  altText?: string;
+  displayOrder: number;
+  isCover: boolean;
+  uploadedAt: string;
+}
+
+export interface EventGalleryAlbum {
+  _id: string;
+  title: string;
+  description?: string;
+  eventId?: EventItem | string;
+  eventDate: string;
+  academicYear?: string;
+  category: 'FLAGSHIP' | 'WORKSHOP' | 'COMPETITION' | 'SEMINAR' | 'COMMUNITY' | 'SYMPOSIUM' | 'OTHER';
+  coverImageUrl?: string;
+  media: GalleryMediaItem[];
+  isPublished: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface GalleryItem {

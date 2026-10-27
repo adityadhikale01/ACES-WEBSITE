@@ -34,6 +34,16 @@ export interface IEvent extends Document {
   status: EventStatus;
   isFeatured: boolean;
   organizerInfo?: string;
+
+  // Paid event fields
+  isPaid: boolean;
+  fee: number; // in integer paise (e.g. 15000 = Rs. 150)
+  paymentInstructions?: string;
+  paymentUpiId?: string;
+  paymentQrUrl?: string;
+  refundPolicy?: string;
+  paymentDeadline?: Date;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +83,15 @@ const EventSchema = new Schema<IEvent>(
     },
     isFeatured: { type: Boolean, default: false },
     organizerInfo: { type: String, default: 'ACES KBTCOE Committee' },
+
+    // Paid event configurations
+    isPaid: { type: Boolean, default: false, index: true },
+    fee: { type: Number, default: 0 }, // in paise
+    paymentInstructions: { type: String },
+    paymentUpiId: { type: String },
+    paymentQrUrl: { type: String },
+    refundPolicy: { type: String },
+    paymentDeadline: { type: Date },
   },
   {
     timestamps: true,

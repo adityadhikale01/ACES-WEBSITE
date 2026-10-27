@@ -13,6 +13,9 @@ import {
   Sparkles,
   ShieldAlert,
   X,
+  CreditCard,
+  QrCode,
+  Info,
 } from 'lucide-react';
 import { EventItem } from '../types/index.js';
 import { api } from '../services/api.js';
@@ -22,6 +25,7 @@ export const EventDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [registrationData, setRegistrationData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +51,7 @@ export const EventDetailPage: React.FC = () => {
           setEvent(res.event);
           if (res.userRegistrationStatus?.isRegistered) {
             setIsRegistered(true);
+            setRegistrationData(res.userRegistrationStatus.registration);
           }
         } else {
           setError('Event not found');
@@ -82,6 +87,7 @@ export const EventDetailPage: React.FC = () => {
       if (res.success) {
         setRegisterSuccess(true);
         setIsRegistered(true);
+        setRegistrationData(res.registration);
         if (event.capacity) {
           setEvent({ ...event, registeredCount: (event.registeredCount || 0) + 1 });
         }
@@ -104,7 +110,7 @@ export const EventDetailPage: React.FC = () => {
   if (error || !event) {
     return (
       <div className="pt-32 pb-20 min-h-screen max-w-xl mx-auto px-4 text-center">
-        <div className="p-8 rounded-3xl bg-navy-850 border border-white/10 space-y-4">
+        <div className="p-8 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
           <AlertCircle size={40} className="mx-auto text-rose-400" />
           <h2 className="text-xl font-bold text-white">Event Not Found</h2>
           <p className="text-xs text-slate-400">
@@ -124,11 +130,11 @@ export const EventDetailPage: React.FC = () => {
 
   const isDeadlinePassed = new Date() > new Date(event.registrationDeadline);
   const isFull = event.capacity ? (event.registeredCount || 0) >= event.capacity : false;
-  const isMemberOnly = event.eligibility === 'MEMBERS_ONLY';
   const canRegister = !isDeadlinePassed && !isFull && !isRegistered;
 
   const eventDate = new Date(event.startDate);
   const deadlineDate = new Date(event.registrationDeadline);
+  const feeDisplay = event.isPaid ? `₹${(event.fee / 100).toFixed(2)}` : 'FREE';
 
   return (
     <div className="pt-28 pb-20 min-h-screen">
@@ -145,7 +151,7 @@ export const EventDetailPage: React.FC = () => {
         </div>
 
         {/* Hero Banner */}
-        <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-navy-850 aspect-[21/9] sm:aspect-[21/8] mb-8">
+        <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-navy-900 aspect-[21/9] sm:aspect-[21/8] mb-8">
           <img
             src={event.posterUrl || '/assets/aces-team.jpg'}
             alt={event.title}
@@ -155,9 +161,20 @@ export const EventDetailPage: React.FC = () => {
 
           <div className="absolute bottom-6 left-6 right-6 flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-2 max-w-2xl">
-              <span className="px-3 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-electric-blue text-white">
-                {event.category}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-electric-blue text-white">
+                  {event.category}
+                </span>
+                <span
+                  className={`px-3 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
+                    event.isPaid
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  {feeDisplay}
+                </span>
+              </div>
               <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
                 {event.title}
               </h1>
@@ -184,7 +201,7 @@ export const EventDetailPage: React.FC = () => {
 
             {/* Event Logistics */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-6 rounded-2xl bg-navy-850 border border-white/10 space-y-2">
+              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-electric-cyan uppercase">
                   <Calendar size={14} />
                   <span>Date & Schedule</span>
@@ -203,17 +220,56 @@ export const EventDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-6 rounded-2xl bg-navy-850 border border-white/10 space-y-2">
+              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-electric-cyan uppercase">
                   <MapPin size={14} />
                   <span>Venue & Location</span>
                 </div>
                 <div className="text-sm font-semibold text-white">{event.venue}</div>
                 <div className="text-xs text-slate-400">
-                  {event.isOnline ? 'Online via Google Meet / Zoom' : 'Department of Computer Engineering, KBTCOE'}
+                  {event.isOnline
+                    ? 'Online via Google Meet / Zoom'
+                    : 'Department of Computer Engineering, KBTCOE'}
                 </div>
               </div>
             </div>
+
+            {/* Paid Event Payment Details Banner */}
+            {event.isPaid && (
+              <div className="p-6 rounded-3xl bg-amber-500/10 border border-amber-500/30 space-y-4">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                  <CreditCard size={18} />
+                  <span>Registration Fee: {feeDisplay}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                      UPI Payment ID (VPA)
+                    </span>
+                    <span className="font-mono text-cyan-300 font-bold text-sm">
+                      {event.paymentUpiId || 'aceskbtcoe@okaxis'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                      Refund Policy
+                    </span>
+                    <span className="text-slate-300">
+                      {event.refundPolicy || 'Non-refundable once seat is verified.'}
+                    </span>
+                  </div>
+                </div>
+                {event.paymentInstructions && (
+                  <div className="p-3 rounded-xl bg-navy-950/60 border border-amber-500/20 text-xs text-slate-300 flex items-start gap-2">
+                    <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-amber-300 block mb-0.5">Instructions:</strong>
+                      {event.paymentInstructions}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Organizer Info */}
             <div className="p-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-4">
@@ -230,7 +286,7 @@ export const EventDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Registration Card */}
+          {/* Right Column: Registration Status Card */}
           <div className="lg:col-span-4 space-y-6">
             <div className="glass-card p-6 rounded-3xl border border-white/10 space-y-6 sticky top-28">
               <h3 className="text-base font-bold text-white border-b border-white/5 pb-3">
@@ -242,10 +298,16 @@ export const EventDetailPage: React.FC = () => {
                 <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-sm">
                     <CheckCircle2 size={16} />
-                    <span>You Are Registered!</span>
+                    <span>
+                      {event.isPaid && registrationData?.paymentStatus !== 'VERIFIED'
+                        ? 'Waitlisted — Awaiting Payment Proof'
+                        : 'Seat Confirmed!'}
+                    </span>
                   </div>
                   <p className="text-xs text-emerald-200/90 leading-relaxed">
-                    Your seat is confirmed. You can view your pass and ticket in your Member Dashboard.
+                    {event.isPaid && registrationData?.paymentStatus !== 'VERIFIED'
+                      ? 'Please submit your payment receipt (UTR & screenshot) in your Member Dashboard to verify your ticket.'
+                      : 'You are registered for this event. Access your event pass in your Member Dashboard.'}
                   </p>
                   <Link
                     to="/dashboard"
@@ -266,8 +328,13 @@ export const EventDetailPage: React.FC = () => {
                 </div>
               ) : null}
 
-              {/* Capacity & Deadline details */}
+              {/* Details */}
               <div className="space-y-3 text-xs">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Entry Fee</span>
+                  <span className="font-bold text-white text-sm">{feeDisplay}</span>
+                </div>
+
                 <div className="flex items-center justify-between text-slate-300">
                   <span>Available Seats</span>
                   <span className="font-semibold text-white">
@@ -307,12 +374,12 @@ export const EventDetailPage: React.FC = () => {
               {/* Action Button */}
               <div>
                 {isRegistered ? (
-                  <button
-                    disabled
-                    className="w-full py-3.5 rounded-xl bg-emerald-600/30 text-emerald-300 font-bold text-xs border border-emerald-500/40 cursor-default"
+                  <Link
+                    to="/dashboard"
+                    className="w-full block py-3.5 rounded-xl bg-electric-blue text-center text-white font-bold text-xs shadow-lg"
                   >
-                    Confirmed Attendee
-                  </button>
+                    {event.isPaid ? 'View Pass & Submit Proof' : 'View Pass in Dashboard'}
+                  </Link>
                 ) : (
                   <button
                     disabled={!canRegister}
@@ -332,7 +399,9 @@ export const EventDetailPage: React.FC = () => {
                     {!isAuthenticated
                       ? 'Sign In to Register'
                       : canRegister
-                      ? 'Register for Event'
+                      ? event.isPaid
+                        ? `Register for Event (${feeDisplay})`
+                        : 'Register for Free'
                       : 'Registration Unavailable'}
                   </button>
                 )}
@@ -350,7 +419,7 @@ export const EventDetailPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md p-6 rounded-3xl bg-navy-850 border border-slate-700/80 shadow-2xl relative"
+              className="w-full max-w-md p-6 rounded-3xl bg-navy-900 border border-slate-700/80 shadow-2xl relative"
             >
               <button
                 onClick={() => {
@@ -368,9 +437,13 @@ export const EventDetailPage: React.FC = () => {
                   <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/40">
                     <CheckCircle2 size={30} />
                   </div>
-                  <h3 className="text-xl font-bold text-white">Registration Confirmed!</h3>
+                  <h3 className="text-xl font-bold text-white">
+                    {event.isPaid ? 'Registration Waitlisted!' : 'Registration Confirmed!'}
+                  </h3>
                   <p className="text-xs text-slate-300">
-                    You have successfully registered for <strong>{event.title}</strong>.
+                    {event.isPaid
+                      ? 'Your entry is recorded. Please submit your UPI transaction reference (UTR) and screenshot in your Member Dashboard to finalize verification.'
+                      : `You have successfully registered for ${event.title}.`}
                   </p>
                   <div className="pt-4 flex gap-3">
                     <button
@@ -381,9 +454,9 @@ export const EventDetailPage: React.FC = () => {
                     </button>
                     <Link
                       to="/dashboard"
-                      className="flex-1 py-2.5 rounded-xl bg-electric-blue text-white text-xs font-semibold"
+                      className="flex-1 py-2.5 rounded-xl bg-electric-blue text-white text-xs font-semibold text-center"
                     >
-                      View Dashboard
+                      {event.isPaid ? 'Submit UTR Proof Now' : 'View Dashboard'}
                     </Link>
                   </div>
                 </div>
@@ -393,6 +466,13 @@ export const EventDetailPage: React.FC = () => {
                     <h3 className="text-lg font-bold text-white">Confirm Event Registration</h3>
                     <p className="text-xs text-slate-400 truncate">{event.title}</p>
                   </div>
+
+                  {event.isPaid && (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs">
+                      <strong className="block font-bold mb-1">Paid Event: {feeDisplay}</strong>
+                      After submitting, you will upload your UPI payment screenshot and UTR in the Member Dashboard to confirm your seat.
+                    </div>
+                  )}
 
                   {registerError && (
                     <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs">
@@ -471,7 +551,7 @@ export const EventDetailPage: React.FC = () => {
                       disabled={registering}
                       className="flex-1 py-3 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white text-xs font-bold shadow-lg shadow-electric-blue/30 hover:shadow-electric-blue/50"
                     >
-                      {registering ? 'Confirming...' : 'Complete Registration'}
+                      {registering ? 'Confirming...' : 'Register'}
                     </button>
                   </div>
                 </form>

@@ -4,8 +4,10 @@ import dotenv from 'dotenv';
 import { User } from '../models/User.js';
 import { Event } from '../models/Event.js';
 import { TeamMember } from '../models/TeamMember.js';
+import { Designation } from '../models/Designation.js';
 import { Activity } from '../models/Activity.js';
 import { GalleryItem } from '../models/GalleryItem.js';
+import { EventGalleryAlbum } from '../models/EventGalleryAlbum.js';
 import { SiteContent } from '../models/SiteContent.js';
 
 dotenv.config();
@@ -41,7 +43,25 @@ export const seedDatabase = async () => {
       console.log(`[Seed] Admin already exists: ${adminEmail}`);
     }
 
-    // 2. Seed Team Members (Real ACES KBTCOE Committee 2026-27)
+    // 2. Seed Standard Designations
+    const desCount = await Designation.countDocuments();
+    if (desCount === 0) {
+      const initialDesignations = [
+        { title: 'Faculty Coordinator', tier: 'FACULTY', displayOrder: 1 },
+        { title: 'Club President', tier: 'PRESIDENT', displayOrder: 2 },
+        { title: 'Vice President', tier: 'VICE_PRESIDENT', displayOrder: 3 },
+        { title: 'Treasurer', tier: 'EXECUTIVE', displayOrder: 4 },
+        { title: 'Event Coordinator', tier: 'EXECUTIVE', displayOrder: 5 },
+        { title: 'Technical Lead', tier: 'EXECUTIVE', displayOrder: 6 },
+        { title: 'Publicity & Media Head', tier: 'EXECUTIVE', displayOrder: 7 },
+        { title: 'Committee Member', tier: 'COMMITTEE', displayOrder: 8 },
+      ];
+      await Designation.insertMany(initialDesignations);
+      console.log(`[Seed] Seeded ${initialDesignations.length} configurable designations.`);
+    }
+
+    // 3. Seed Team Members (Real ACES KBTCOE Committee 2026-27)
+    await TeamMember.updateMany({ isPublished: { $exists: false } }, { $set: { isPublished: true } });
     const teamCount = await TeamMember.countDocuments();
     if (teamCount === 0) {
       const teamData = [
@@ -56,6 +76,7 @@ export const seedDatabase = async () => {
           linkedinUrl: 'https://linkedin.com',
           displayOrder: 1,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Sammpana Kasar',
@@ -68,6 +89,7 @@ export const seedDatabase = async () => {
           linkedinUrl: 'https://linkedin.com',
           displayOrder: 2,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Ayush Talekar',
@@ -79,6 +101,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/AyushTalekar(Treasurer).jpg',
           displayOrder: 3,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Khushi Mansuri',
@@ -90,6 +113,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/KhushiMansuri(Event Coordinator).png',
           displayOrder: 4,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Yash Patil',
@@ -101,6 +125,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/yash_Patil(Event Coordinator).jpg',
           displayOrder: 5,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Arjun Patil',
@@ -111,6 +136,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/arjun_patil.jpg',
           displayOrder: 6,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Atharva Vispute',
@@ -121,6 +147,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/Atharva_vispute.png',
           displayOrder: 7,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Apurva Rahane',
@@ -131,6 +158,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/Apurva_Rahane.png',
           displayOrder: 8,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Ronit Raheja',
@@ -141,6 +169,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/ronitraheja.jpeg',
           displayOrder: 9,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Purva Sonawane',
@@ -151,6 +180,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/purva sonawane.png',
           displayOrder: 10,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Sarthak Patil',
@@ -161,6 +191,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/Sarthak Patil.jpg',
           displayOrder: 11,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Sanyukti Gangurde',
@@ -171,6 +202,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/sanyukti gangurde.png',
           displayOrder: 12,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Mrunal Amrutkar',
@@ -181,6 +213,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/Mrunal Amrutkar.jpg',
           displayOrder: 13,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Mrunal Thete',
@@ -191,6 +224,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/Mrunal Thete.jpg',
           displayOrder: 14,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Nirali Shah',
@@ -201,6 +235,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/Nirali Shah.jpeg',
           displayOrder: 15,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Shraddha Sonar',
@@ -211,6 +246,7 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/sharadhha sonar_Drive.jpg',
           displayOrder: 16,
           isActive: true,
+          isPublished: true,
         },
         {
           name: 'Jiya Shah',
@@ -221,13 +257,14 @@ export const seedDatabase = async () => {
           photoUrl: '/assets/members/JIYA SHAH.jpg',
           displayOrder: 17,
           isActive: true,
+          isPublished: true,
         },
       ];
       await TeamMember.insertMany(teamData);
       console.log(`[Seed] Seeded ${teamData.length} committee team members.`);
     }
 
-    // 3. Seed Events
+    // 4. Seed Events (Both Free and Paid Events)
     const eventCount = await Event.countDocuments();
     if (eventCount === 0) {
       const eventsData = [
@@ -249,6 +286,8 @@ export const seedDatabase = async () => {
           eligibility: 'OPEN_TO_ALL',
           status: 'PUBLISHED',
           isFeatured: true,
+          isPaid: false,
+          fee: 0,
           organizerInfo: 'ACES KBTCOE Flagship Committee',
         },
         {
@@ -269,6 +308,8 @@ export const seedDatabase = async () => {
           eligibility: 'OPEN_TO_ALL',
           status: 'PUBLISHED',
           isFeatured: true,
+          isPaid: false,
+          fee: 0,
           organizerInfo: 'ACES Technical Domain',
         },
         {
@@ -289,158 +330,79 @@ export const seedDatabase = async () => {
           eligibility: 'OPEN_TO_ALL',
           status: 'PUBLISHED',
           isFeatured: true,
+          isPaid: false,
+          fee: 0,
           organizerInfo: 'ACES AI & Web Head',
         },
         {
-          title: 'WEBCRAFT FRONTEND MASTERY',
-          slug: 'webcraft-frontend-mastery',
-          subtitle: 'Modern UI/UX & Responsive Web Architecture',
+          title: 'TECHFEST 2027 HACKATHON',
+          slug: 'techfest-2027-hackathon',
+          subtitle: '24-Hour Product Sprint & Cash Prize Arena',
           description:
-            'Design and build a responsive web experience from scratch using React, Tailwind CSS, and modern web APIs. Includes live mentoring from senior developers.',
-          category: 'DEVELOPMENT',
-          posterUrl: 'https://images.unsplash.com/photo-1547658719-da2b51169166?auto=format&fit=crop&w=1200&q=80',
-          venue: 'Innovation Lab, 3rd Floor',
+            'The flagship 24-hour departmental hackathon. Build innovative software and hardware prototypes, compete for verified cash prizes, certificates, and direct industry evaluations.',
+          category: 'FLAGSHIP',
+          posterUrl: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80',
+          venue: 'KBTCOE Central Campus, Nashik',
           isOnline: false,
-          startDate: new Date('2026-10-17T10:30:00Z'),
-          timeString: '10:30 AM - 3:30 PM',
-          registrationDeadline: new Date('2026-10-16T18:00:00Z'),
-          capacity: 70,
-          registeredCount: 30,
-          eligibility: 'MEMBERS_ONLY',
-          status: 'PUBLISHED',
-          isFeatured: false,
-          organizerInfo: 'ACES Web Domain',
-        },
-        {
-          title: 'DEBUG THE CODE',
-          slug: 'debug-the-code',
-          subtitle: 'Spot the Bug, Fix the Logic, Beat the Clock',
-          description:
-            'Find the subtle concurrency bug, memory leak, or syntax anomaly across C++, Java, and Python codebases under tight countdown pressure.',
-          category: 'CHALLENGE',
-          posterUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80',
-          venue: 'Computer Lab 02',
-          isOnline: false,
-          startDate: new Date('2026-11-07T11:00:00Z'),
-          timeString: '11:00 AM - 1:30 PM',
-          registrationDeadline: new Date('2026-11-06T20:00:00Z'),
-          capacity: 60,
-          registeredCount: 15,
+          startDate: new Date('2027-02-20T09:00:00Z'),
+          timeString: '9:00 AM Onwards (24-Hour Hack)',
+          registrationDeadline: new Date('2027-02-18T23:59:00Z'),
+          capacity: 100,
+          registeredCount: 28,
           eligibility: 'OPEN_TO_ALL',
           status: 'PUBLISHED',
-          isFeatured: false,
-          organizerInfo: 'ACES Competitive Domain',
-        },
-        {
-          title: 'ACES TALKS: INDUSTRY PERSPECTIVES',
-          slug: 'aces-talks-industry-perspectives',
-          subtitle: 'Connecting Students with Senior Engineers & Tech Leads',
-          description:
-            'An interactive seminar featuring alumni and tech leads from top engineering companies discussing software engineering roles, open source, and career navigation.',
-          category: 'COMMUNITY',
-          posterUrl: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=1200&q=80',
-          venue: 'Seminar Hall, KBTCOE',
-          isOnline: false,
-          startDate: new Date('2026-12-05T15:00:00Z'),
-          timeString: '3:00 PM - 5:00 PM',
-          registrationDeadline: new Date('2026-12-04T23:59:00Z'),
-          capacity: 200,
-          registeredCount: 88,
-          eligibility: 'OPEN_TO_ALL',
-          status: 'PUBLISHED',
-          isFeatured: false,
-          organizerInfo: 'ACES PR & Outreach Team',
+          isFeatured: true,
+          isPaid: true,
+          fee: 20000, // Rs. 200 (in paise)
+          paymentInstructions:
+            'Pay registration fee of Rs. 200 per team via official departmental UPI. Enter the 12-digit UTR and upload the payment receipt.',
+          paymentUpiId: 'aces.kbtcoe@upi',
+          refundPolicy: 'Refunds permitted if cancellation is requested 48 hours prior to hackathon launch.',
+          organizerInfo: 'ACES Flagship Hackathon Team',
         },
       ];
       await Event.insertMany(eventsData);
       console.log(`[Seed] Seeded ${eventsData.length} departmental events.`);
     }
 
-    // 4. Seed Activities & Achievements
-    const actCount = await Activity.countDocuments();
-    if (actCount === 0) {
-      const activitiesData = [
-        {
-          title: 'Department Induction & ACES Orientation 2026',
-          type: 'ACTIVITY',
-          description:
-            'Welcomed newly joined computer engineering students with interactive icebreaking sessions, club overview, and technical roadmap briefing.',
-          date: new Date('2026-08-10'),
-          imageUrl: '/assets/aces-team.jpg',
-          tags: ['Orientation', 'Induction', 'Student Community'],
-          displayOrder: 1,
-          featured: true,
-        },
-        {
-          title: 'National Hackathon Finalists Recognition',
-          type: 'ACHIEVEMENT',
-          description:
-            'Departmental teams mentored by ACES seniors qualified for the Grand Finale of Smart India Hackathon and regional inter-college competitions.',
-          date: new Date('2026-09-01'),
-          imageUrl: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80',
-          tags: ['Hackathon', 'Excellence', 'Innovation'],
-          displayOrder: 2,
-          featured: true,
-        },
-        {
-          title: 'Open Source Contribution Sprint',
-          type: 'ACTIVITY',
-          description:
-            'Organized a 2-day hands-on Git & GitHub workshop guiding 100+ students through opening their very first pull requests to active repositories.',
-          date: new Date('2026-09-25'),
-          imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80',
-          tags: ['Git', 'OpenSource', 'Workshop'],
-          displayOrder: 3,
-          featured: true,
-        },
-      ];
-      await Activity.insertMany(activitiesData);
-      console.log(`[Seed] Seeded ${activitiesData.length} activities and achievements.`);
-    }
-
-    // 5. Seed Gallery Items
-    const galleryCount = await GalleryItem.countDocuments();
-    if (galleryCount === 0) {
-      const galleryData = [
-        {
-          title: 'ACES 2026-27 Executive Committee & Team',
-          caption: 'Official full committee group photograph at KBTCOE Campus.',
-          mediaUrl: '/assets/aces-team.jpg',
-          category: 'TEAM',
-          displayOrder: 1,
-          featured: true,
-        },
-        {
-          title: 'Annual TechFest Coding Contest',
-          caption: 'Students solving algorithmic questions in Computer Lab 01.',
-          mediaUrl: 'https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1200&q=80',
-          category: 'COMPETITION',
-          displayOrder: 2,
-          featured: true,
-        },
-        {
-          title: 'Build With AI Hands-on Session',
-          caption: 'Interactive workshop on modern web technologies and AI integration.',
-          mediaUrl: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1200&q=80',
-          category: 'WORKSHOP',
-          displayOrder: 3,
-          featured: true,
-        },
-        {
-          title: 'Tech Tank Idea Presentation',
-          caption: 'Teams pitching their engineering solutions to jury members.',
-          mediaUrl: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1200&q=80',
-          category: 'FLAGSHIP',
-          displayOrder: 4,
-          featured: true,
-        },
-      ];
-      await GalleryItem.insertMany(galleryData);
-      console.log(`[Seed] Seeded ${galleryData.length} gallery items.`);
+    // 5. Seed Concluded Event Gallery Album (Kachurli Ashram Shala Event)
+    const albumCount = await EventGalleryAlbum.countDocuments();
+    if (albumCount === 0) {
+      const albumData = {
+        title: 'Kachurli Ashram Shala Social & Educational Outreach',
+        eventDate: new Date('2026-09-23'),
+        description:
+          'ACES KBTCOE students and faculty conducted an inspiring community outreach initiative at Kachurli Ashram Shala, conducting computer fundamentals workshops, educational sessions, and sharing knowledge.',
+        category: 'SOCIAL_INITIATIVE',
+        coverMediaUrl: '/assets/events/Kachurli_Ashram_Shala_Event.jpg',
+        coverMediaType: 'IMAGE',
+        media: [
+          {
+            url: '/assets/events/Kachurli_Ashram_Shala_Event.jpg',
+            mediaType: 'IMAGE',
+            caption: 'ACES team conducting interactive sessions with students at Kachurli Ashram Shala.',
+            altText: 'Kachurli Ashram Shala Outreach Session 1',
+            displayOrder: 1,
+            isFeatured: true,
+          },
+          {
+            url: '/assets/events/Kachurli_Ashram_Shala_Event.2.jpg',
+            mediaType: 'IMAGE',
+            caption: 'Student volunteers and departmental faculty engaging in hands-on learning activities.',
+            altText: 'Kachurli Ashram Shala Outreach Session 2',
+            displayOrder: 2,
+            isFeatured: true,
+          },
+        ],
+        isPublished: true,
+        displayOrder: 1,
+      };
+      await EventGalleryAlbum.create(albumData);
+      console.log('[Seed] Seeded Kachurli Ashram Shala concluded event album.');
     }
 
     // 6. Seed Site Content (CMS)
-    const siteContentKeys = ['about_info', 'club_stats', 'contact_details'];
+    const siteContentKeys = ['about_info', 'club_stats', 'contact_details', 'payment_settings'];
     for (const key of siteContentKeys) {
       const existing = await SiteContent.findOne({ key });
       if (!existing) {
@@ -450,7 +412,8 @@ export const seedDatabase = async () => {
             fullName: "Computer Engineering Students' Association",
             shortName: 'ACES KBTCOE',
             department: 'Department of Computer Engineering',
-            institution: "Maratha Vidya Prasarak Samaj's Karmaveer Adv. Baburao Ganpatrao Thakare College of Engineering (MVPS's KBTCOE)",
+            institution:
+              "Maratha Vidya Prasarak Samaj's Karmaveer Adv. Baburao Ganpatrao Thakare College of Engineering (MVPS's KBTCOE)",
             location: 'Gangapur Road, Nashik - 422013, Maharashtra, India',
             motto: 'Learn. Build. Connect. Lead.',
             mission:
@@ -469,25 +432,26 @@ export const seedDatabase = async () => {
           data = {
             email: 'aces.kbtcoe@gmail.com',
             phone: '+91 253 2571439',
-            location: 'Department of Computer Engineering, KBTCOE, Udoji Maratha Boarding Campus, Gangapur Road, Nashik - 422013',
+            location:
+              'Department of Computer Engineering, KBTCOE, Udoji Maratha Boarding Campus, Gangapur Road, Nashik - 422013',
             instagram: 'https://instagram.com/aces_kbtcoe',
             linkedin: 'https://linkedin.com/company/aces-kbtcoe',
             github: 'https://github.com/aces-kbtcoe',
+          };
+        } else if (key === 'payment_settings') {
+          data = {
+            defaultUpiId: 'aces.kbtcoe@upi',
+            recipientName: 'ACES KBTCOE Departmental Club',
+            bankName: 'Bank of Maharashtra (KBTCOE Branch)',
+            instructionsNote:
+              'Please verify payment details before sending. Enter the correct 12-digit UTR reference on submission.',
           };
         }
         await SiteContent.create({ key, data });
       }
     }
-    console.log('[Seed] Site content CMS initialized.');
     console.log('[Seed] Seeding completed successfully!');
   } catch (error: any) {
     console.error('[Seed] Seeding error:', error.message);
   }
 };
-
-// Execute directly if run as a script
-if (process.argv[1]?.endsWith('seedData.ts') || process.argv[1]?.endsWith('seedData.js')) {
-  seedDatabase().then(() => {
-    process.exit(0);
-  });
-}

@@ -6,9 +6,13 @@ export async function request<T = any>(
 ): Promise<{ success: boolean; data?: T; message?: string; [key: string]: any }> {
   const url = `${API_BASE}${endpoint}`;
 
-  const defaultHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+  const defaultHeaders: Record<string, string> = isFormData
+    ? {}
+    : {
+        'Content-Type': 'application/json',
+      };
 
   const response = await fetch(url, {
     ...options,
@@ -73,6 +77,35 @@ export const api = {
     getExportUrl: (eventId: string) => `${API_BASE}/registrations/event/${eventId}/export`,
   },
 
+  // Payments & Manual Verification
+  payments: {
+    submitProof: (formData: FormData) =>
+      request('/payments/submit-proof', {
+        method: 'POST',
+        body: formData,
+      }),
+    getMyPayments: () => request('/payments/my'),
+    getAdminQueue: (params?: { status?: string; search?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.append('status', params.status);
+      if (params?.search) q.append('search', params.search);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return request(`/payments/admin/all${queryStr}`);
+    },
+    verifyProof: (id: string, body: { status: string; rejectionReason?: string; adminNotes?: string }) =>
+      request(`/payments/admin/${id}/verify`, { method: 'PATCH', body: JSON.stringify(body) }),
+    getScreenshotUrl: (id: string) => `${API_BASE}/payments/screenshot/${id}`,
+  },
+
+  // Designations
+  designations: {
+    getAll: () => request('/designations'),
+    getAllAdmin: () => request('/designations/admin/all'),
+    create: (body: any) => request('/designations', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: any) => request(`/designations/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    retire: (id: string) => request(`/designations/${id}`, { method: 'DELETE' }),
+  },
+
   // Applications
   applications: {
     submit: (body: any) => request('/applications', { method: 'POST', body: JSON.stringify(body) }),
@@ -91,9 +124,12 @@ export const api = {
   // Team
   team: {
     getAll: () => request('/team'),
+    getAllAdmin: () => request('/team/admin/all'),
     add: (body: any) => request('/team', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request(`/team/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id: string) => request(`/team/${id}`, { method: 'DELETE' }),
+    reorder: (orderedIds: string[]) =>
+      request('/team/reorder', { method: 'PATCH', body: JSON.stringify({ orderedIds }) }),
   },
 
   // Activities
@@ -104,11 +140,25 @@ export const api = {
     delete: (id: string) => request(`/activities/${id}`, { method: 'DELETE' }),
   },
 
-  // Gallery
+  // Gallery (Albums & Media)
   gallery: {
-    getAll: (category?: string) => request(`/gallery${category ? `?category=${category}` : ''}`),
-    add: (body: any) => request('/gallery', { method: 'POST', body: JSON.stringify(body) }),
-    delete: (id: string) => request(`/gallery/${id}`, { method: 'DELETE' }),
+    getAlbums: (category?: string) =>
+      request(`/gallery/albums${category ? `?category=${category}` : ''}`),
+    getAlbumById: (id: string) => request(`/gallery/albums/${id}`),
+    getAllAlbumsAdmin: () => request('/gallery/admin/all'),
+    createAlbum: (body: any) => request('/gallery/albums', { method: 'POST', body: JSON.stringify(body) }),
+    updateAlbum: (id: string, body: any) =>
+      request(`/gallery/albums/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteAlbum: (id: string) => request(`/gallery/albums/${id}`, { method: 'DELETE' }),
+    uploadMedia: (albumId: string, formData: FormData) =>
+      request(`/gallery/albums/${albumId}/media`, {
+        method: 'POST',
+        body: formData,
+      }),
+    deleteMedia: (albumId: string, mediaId: string) =>
+      request(`/gallery/albums/${albumId}/media/${mediaId}`, { method: 'DELETE' }),
+    getAllLegacy: (category?: string) =>
+      request(`/gallery/legacy${category ? `?category=${category}` : ''}`),
   },
 
   // Contact

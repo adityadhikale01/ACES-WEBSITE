@@ -212,6 +212,174 @@ const runTests = async () => {
     const adminStatsData = await adminStatsRes.json();
     assert(adminStatsRes.status === 200 && adminStatsData.stats.totalUsers > 0, 'Admin successfully fetches live system analytics');
 
+    // 16. Designation Management (Dynamic Roles)
+    const desgRes = await fetch(`${baseUrl}/api/v1/designations`);
+    const desgData = await desgRes.json();
+    assert(desgRes.status === 200 && Array.isArray(desgData.designations), `GET /api/v1/designations returns ${desgData.designations?.length || 0} active designations`);
+
+    const newDesgRes = await fetch(`${baseUrl}/api/v1/designations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        title: 'Lead Cloud Architect',
+        tier: 'CORE_OFFICER',
+        displayOrder: 15,
+        description: 'Oversees departmental cloud infrastructure and deployments',
+      }),
+    });
+    const newDesgData = await newDesgRes.json();
+    assert(newDesgRes.status === 201 && newDesgData.designation?.title === 'Lead Cloud Architect', 'Admin creates a configurable club designation');
+
+    // 17. Paid Event Registration & Manual Payment Verification Workflow
+    const paidEvent = eventsData.events?.find((e) => e.isPaid) || eventsData.events?.[0];
+    if (paidEvent) {
+      // Ensure it has isPaid: true for testing if needed
+      if (!paidEvent.isPaid) {
+        await Event.findByIdAndUpdate(paidEvent._id, {
+          isPaid: true,
+          fee: 25000,
+          paymentUpiId: 'aceskbtcoe@okaxis',
+          paymentInstructions: 'Pay Rs 250 via GPay/PhonePe to aceskbtcoe@okaxis',
+        });
+      }
+
+      // Register second student for paid event
+      const student2Email = `student2_${Date.now()}@kbtcoe.org`;
+      const reg2Res = await fetch(`${baseUrl}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: 'Ananya Sharma',
+          email: student2Email,
+          password: 'Password@123',
+          department: 'Computer Engineering',
+          academicYear: 'TE',
+        }),
+      });
+      const reg2Data = await reg2Res.json();
+      const student2Token = reg2Data.token;
+
+      const paidRegRes = await fetch(`${baseUrl}/api/v1/registrations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${student2Token}`,
+        },
+        body: JSON.stringify({
+          eventId: paidEvent._id,
+          academicYear: 'TE',
+          notes: 'Team Lead',
+        }),
+      });
+      const paidRegData = await paidRegRes.json();
+      assert(
+        paidRegRes.status === 201 &&
+          paidRegData.registration?.paymentStatus === 'AWAITING_PAYMENT' &&
+          paidRegData.registration?.status === 'WAITLISTED',
+        'Paid event registration sets status to WAITLISTED with paymentStatus AWAITING_PAYMENT'
+      );
+
+      const registrationId = paidRegData.registration._id;
+
+      // 18. Submit Payment Proof with UTR & Screenshot
+      const mockImageBuffer = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
+      );
+      const formData = new FormData();
+      formData.append('registrationId', registrationId);
+      const testUtr = `UTR${Date.now()}`;
+      formData.append('utrReference', testUtr);
+      formData.append('screenshot', new Blob([mockImageBuffer], { type: 'image/png' }), 'receipt.png');
+
+      const submitProofRes = await fetch(`${baseUrl}/api/v1/payments/submit-proof`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${student2Token}`,
+        },
+        body: formData,
+      });
+      const submitProofData = await submitProofRes.json();
+      assert(
+        submitProofRes.status === 201 && submitProofData.submission?.status === 'PROOF_SUBMITTED',
+        'Student submits UTR reference and payment screenshot successfully'
+      );
+
+      const submissionId = submitProofData.submission?._id;
+
+      // 19. IDOR Security: Third-party student CANNOT view screenshot
+      const idorRes = await fetch(`${baseUrl}/api/v1/payments/screenshot/${submissionId}`, {
+        headers: { Authorization: `Bearer ${authToken}` }, // Different student
+      });
+      assert(idorRes.status === 403, 'IDOR Protection: Unauthorized user is denied access to payment receipt (403 Forbidden)');
+
+      // 20. Student owner CAN view screenshot
+      const ownerReceiptRes = await fetch(`${baseUrl}/api/v1/payments/screenshot/${submissionId}`, {
+        headers: { Authorization: `Bearer ${student2Token}` },
+      });
+      assert(ownerReceiptRes.status === 200, 'Student owner can securely retrieve payment proof receipt stream');
+
+      // 21. Admin Review & Verification
+      const adminQueueRes = await fetch(`${baseUrl}/api/v1/payments/admin/all`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const adminQueueData = await adminQueueRes.json();
+      assert(
+        adminQueueRes.status === 200 && Array.isArray(adminQueueData.submissions) && adminQueueData.submissions.length > 0,
+        'Admin lists pending payment verification queue'
+      );
+
+      const verifyRes = await fetch(`${baseUrl}/api/v1/payments/admin/${submissionId}/verify`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          status: 'VERIFIED',
+          adminNotes: 'Transaction verified with bank statement',
+        }),
+      });
+      const verifyData = await verifyRes.json();
+      assert(
+        verifyRes.status === 200 &&
+          verifyData.submission?.status === 'VERIFIED' &&
+          verifyData.registration?.paymentStatus === 'VERIFIED' &&
+          verifyData.registration?.status === 'REGISTERED',
+        'Admin verification confirms payment and promotes registration to REGISTERED'
+      );
+    }
+
+    // 22. Event Gallery Albums & Media
+    const galleryRes = await fetch(`${baseUrl}/api/v1/gallery/albums`);
+    const galleryData = await galleryRes.json();
+    assert(
+      galleryRes.status === 200 && Array.isArray(galleryData.albums) && galleryData.albums.length > 0,
+      `GET /api/v1/gallery/albums returns ${galleryData.albums?.length || 0} completed event albums`
+    );
+
+    // 23. Admin Creates Completed Event Album
+    const newAlbumRes = await fetch(`${baseUrl}/api/v1/gallery/albums`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        title: 'National Tech Symposium 2026',
+        description: 'Memories and key moments from our annual flagship technical symposium.',
+        eventDate: '2026-03-20',
+        academicYear: '2025-26',
+        category: 'SYMPOSIUM',
+        isPublished: true,
+      }),
+    });
+    const newAlbumData = await newAlbumRes.json();
+    assert(newAlbumRes.status === 201 && newAlbumData.album?.title === 'National Tech Symposium 2026', 'Admin successfully creates completed event album');
+
   } catch (err) {
     console.error('Test execution error:', err);
     failed++;

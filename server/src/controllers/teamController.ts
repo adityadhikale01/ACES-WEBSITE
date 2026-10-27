@@ -4,6 +4,7 @@ import { TeamMember } from '../models/TeamMember.js';
 
 export const teamMemberSchema = z.object({
   name: z.string().min(2, 'Name is required'),
+  designationId: z.string().optional(),
   role: z.string().min(2, 'Role is required'),
   tier: z.enum(['FACULTY', 'PRESIDENT', 'VICE_PRESIDENT', 'EXECUTIVE', 'COMMITTEE']).default('COMMITTEE'),
   department: z.string().default('Computer Engineering'),
@@ -14,11 +15,14 @@ export const teamMemberSchema = z.object({
   githubUrl: z.string().optional(),
   displayOrder: z.number().default(0),
   isActive: z.boolean().default(true),
+  isPublished: z.boolean().default(true),
 });
 
 export const getTeam = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const members = await TeamMember.find({ isActive: true }).sort({ displayOrder: 1, createdAt: 1 });
+    const members = await TeamMember.find({ isActive: true, isPublished: { $ne: false } })
+      .populate('designationId')
+      .sort({ displayOrder: 1, createdAt: 1 });
 
     const grouped = {
       president: members.find((m) => m.tier === 'PRESIDENT') || null,
@@ -30,6 +34,18 @@ export const getTeam = async (_req: Request, res: Response): Promise<void> => {
     };
 
     res.json({ success: true, count: members.length, team: grouped });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getAllTeamAdmin = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const members = await TeamMember.find()
+      .populate('designationId')
+      .sort({ displayOrder: 1, createdAt: 1 });
+
+    res.json({ success: true, count: members.length, members });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -53,6 +69,25 @@ export const updateTeamMember = async (req: Request, res: Response): Promise<voi
       return;
     }
     res.json({ success: true, message: 'Team member updated', member: updated });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const reorderTeamMembers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { orderedIds } = req.body; // array of IDs in new order
+    if (!Array.isArray(orderedIds)) {
+      res.status(400).json({ success: false, message: 'orderedIds must be an array of IDs' });
+      return;
+    }
+
+    const updates = orderedIds.map((id, index) =>
+      TeamMember.findByIdAndUpdate(id, { displayOrder: index + 1 })
+    );
+    await Promise.all(updates);
+
+    res.json({ success: true, message: 'Team members reordered successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

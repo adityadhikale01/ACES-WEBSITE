@@ -51,7 +51,7 @@ export const registerForEvent = async (req: AuthRequest, res: Response): Promise
     const existingRegistration = await EventRegistration.findOne({
       eventId: event._id,
       userId: user._id,
-      status: { $in: ['REGISTERED', 'ATTENDED'] },
+      status: { $in: ['REGISTERED', 'WAITLISTED', 'ATTENDED'] },
     });
 
     if (existingRegistration) {
@@ -59,7 +59,7 @@ export const registerForEvent = async (req: AuthRequest, res: Response): Promise
       return;
     }
 
-    // Enforce capacity atomically
+    // Enforce capacity safely
     if (event.capacity !== null && event.capacity !== undefined) {
       const currentActiveCount = await EventRegistration.countDocuments({
         eventId: event._id,
@@ -75,6 +75,8 @@ export const registerForEvent = async (req: AuthRequest, res: Response): Promise
       }
     }
 
+    const isPaid = Boolean(event.isPaid && event.fee > 0);
+
     const registration = await EventRegistration.create({
       eventId: event._id,
       userId: user._id,
@@ -84,7 +86,10 @@ export const registerForEvent = async (req: AuthRequest, res: Response): Promise
       department: user.department || 'Computer Engineering',
       academicYear: academicYear || user.academicYear || 'SE',
       registrationDate: new Date(),
-      status: 'REGISTERED',
+      status: isPaid ? 'WAITLISTED' : 'REGISTERED',
+      isPaidEvent: isPaid,
+      amountDue: isPaid ? event.fee : 0,
+      paymentStatus: isPaid ? 'AWAITING_PAYMENT' : 'FREE',
       notes,
     });
 
@@ -93,8 +98,15 @@ export const registerForEvent = async (req: AuthRequest, res: Response): Promise
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful! See you at the event.',
+      message: isPaid
+        ? 'Registration created! Please submit payment proof to confirm your seat.'
+        : 'Registration successful! See you at the event.',
       registration,
+      isPaidEvent: isPaid,
+      amountDue: event.fee,
+      paymentInstructions: event.paymentInstructions,
+      paymentUpiId: event.paymentUpiId,
+      paymentQrUrl: event.paymentQrUrl,
     });
   } catch (error: any) {
     if (error.code === 11000) {
@@ -116,7 +128,7 @@ export const cancelRegistration = async (req: AuthRequest, res: Response): Promi
     const registration = await EventRegistration.findOne({
       _id: id,
       userId: req.user._id,
-      status: 'REGISTERED',
+      status: { $in: ['REGISTERED', 'WAITLISTED'] },
     });
 
     if (!registration) {
@@ -125,6 +137,7 @@ export const cancelRegistration = async (req: AuthRequest, res: Response): Promi
     }
 
     registration.status = 'CANCELLED';
+    registration.paymentStatus = 'CANCELLED';
     await registration.save();
 
     await Event.findByIdAndUpdate(registration.eventId, { $inc: { registeredCount: -1 } });
@@ -144,9 +157,10 @@ export const getMyRegistrations = async (req: AuthRequest, res: Response): Promi
 
     const registrations = await EventRegistration.find({ userId: req.user._id })
       .populate('eventId')
+      .populate('paymentSubmissionId')
       .sort({ registrationDate: -1 });
 
-    res.json({ success: true, registrations });
+    res.json({ success: true, count: registrations.length, registrations });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -157,6 +171,7 @@ export const getEventAttendees = async (req: AuthRequest, res: Response): Promis
     const { eventId } = req.params;
     const registrations = await EventRegistration.find({ eventId })
       .populate('userId', 'fullName email phone department academicYear')
+      .populate('paymentSubmissionId')
       .sort({ registrationDate: 1 });
 
     res.json({ success: true, count: registrations.length, attendees: registrations });
@@ -169,11 +184,17 @@ export const exportAttendeesCSV = async (req: AuthRequest, res: Response): Promi
   try {
     const { eventId } = req.params;
     const event = await Event.findById(eventId);
-    const registrations = await EventRegistration.find({ eventId }).sort({ registrationDate: 1 });
+    const registrations = await EventRegistration.find({ eventId })
+      .populate('paymentSubmissionId')
+      .sort({ registrationDate: 1 });
 
-    let csv = 'Full Name,Email,Phone,Department,Academic Year,Status,Registration Date\n';
-    registrations.forEach((reg) => {
-      csv += `"${reg.fullName}","${reg.email}","${reg.phone || ''}","${reg.department}","${reg.academicYear}","${reg.status}","${reg.registrationDate.toISOString()}"\n`;
+    let csv =
+      'Full Name,Email,Phone,Department,Academic Year,Status,Payment Status,Amount Due (INR),UTR Reference,Registration Date\n';
+
+    registrations.forEach((reg: any) => {
+      const utr = reg.paymentSubmissionId?.utrReference || 'N/A';
+      const feeInr = (reg.amountDue / 100).toFixed(2);
+      csv += `"${reg.fullName}","${reg.email}","${reg.phone || ''}","${reg.department}","${reg.academicYear}","${reg.status}","${reg.paymentStatus}","${feeInr}","${utr}","${reg.registrationDate.toISOString()}"\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv');
@@ -192,11 +213,7 @@ export const updateAttendance = async (req: AuthRequest, res: Response): Promise
     const { id } = req.params;
     const { status } = req.body;
 
-    const updated = await EventRegistration.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    );
+    const updated = await EventRegistration.findByIdAndUpdate(id, { status }, { new: true });
 
     if (!updated) {
       res.status(404).json({ success: false, message: 'Registration record not found' });

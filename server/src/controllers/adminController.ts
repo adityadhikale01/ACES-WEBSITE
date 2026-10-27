@@ -4,17 +4,25 @@ import { Event } from '../models/Event.js';
 import { EventRegistration } from '../models/EventRegistration.js';
 import { MembershipApplication } from '../models/MembershipApplication.js';
 import { ContactMessage } from '../models/ContactMessage.js';
+import { PaymentSubmission } from '../models/PaymentSubmission.js';
+import { EventGalleryAlbum } from '../models/EventGalleryAlbum.js';
 import { AuthRequest } from '../middleware/auth.js';
 
 export const getAdminStats = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const now = new Date();
+
     const [
       totalUsers,
       totalApprovedMembers,
       pendingApplications,
       totalEvents,
       activeEvents,
+      upcomingEvents,
       totalRegistrations,
+      pendingPayments,
+      confirmedPayments,
+      totalAlbums,
       unreadMessages,
     ] = await Promise.all([
       User.countDocuments(),
@@ -22,19 +30,27 @@ export const getAdminStats = async (_req: AuthRequest, res: Response): Promise<v
       MembershipApplication.countDocuments({ status: 'PENDING' }),
       Event.countDocuments(),
       Event.countDocuments({ status: 'PUBLISHED' }),
+      Event.countDocuments({ status: 'PUBLISHED', startDate: { $gte: now } }),
       EventRegistration.countDocuments({ status: { $in: ['REGISTERED', 'ATTENDED'] } }),
+      PaymentSubmission.countDocuments({ status: { $in: ['PROOF_SUBMITTED', 'UNDER_REVIEW'] } }),
+      PaymentSubmission.countDocuments({ status: 'VERIFIED' }),
+      EventGalleryAlbum.countDocuments(),
       ContactMessage.countDocuments({ isRead: false }),
     ]);
 
     // Recent activity stream
-    const recentRegistrations = await EventRegistration.find()
-      .populate('eventId', 'title')
-      .sort({ registrationDate: -1 })
-      .limit(5);
-
-    const recentApplications = await MembershipApplication.find()
-      .sort({ createdAt: -1 })
-      .limit(5);
+    const [recentRegistrations, recentApplications, recentPayments] = await Promise.all([
+      EventRegistration.find()
+        .populate('eventId', 'title')
+        .sort({ registrationDate: -1 })
+        .limit(5),
+      MembershipApplication.find().sort({ createdAt: -1 }).limit(5),
+      PaymentSubmission.find()
+        .populate('eventId', 'title')
+        .populate('userId', 'fullName')
+        .sort({ submissionTimestamp: -1 })
+        .limit(5),
+    ]);
 
     res.json({
       success: true,
@@ -44,12 +60,17 @@ export const getAdminStats = async (_req: AuthRequest, res: Response): Promise<v
         pendingApplications,
         totalEvents,
         activeEvents,
+        upcomingEvents,
         totalRegistrations,
+        pendingPayments,
+        confirmedPayments,
+        totalAlbums,
         unreadMessages,
       },
       recentActivity: {
         registrations: recentRegistrations,
         applications: recentApplications,
+        payments: recentPayments,
       },
     });
   } catch (error: any) {
