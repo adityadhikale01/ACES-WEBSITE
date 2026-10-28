@@ -201,7 +201,7 @@ const runTests = async () => {
       }),
     });
     const adminLoginData = await adminLoginRes.json();
-    assert(adminLoginRes.status === 200 && adminLoginData.user.role === 'ADMIN', 'Admin login succeeds with verified role: ADMIN');
+    assert(adminLoginRes.status === 200 && ['ADMIN', 'SUPER_ADMIN'].includes(adminLoginData.user.role), 'Superadmin login succeeds with verified role');
 
     const adminToken = adminLoginData.token;
 
@@ -380,6 +380,136 @@ const runTests = async () => {
     });
     const newAlbumData = await newAlbumRes.json();
     assert(newAlbumRes.status === 201 && newAlbumData.album?.title === 'National Tech Symposium 2026', 'Admin successfully creates completed event album');
+
+    // 24. RBAC: Faculty Coordinator Authentication & Activity Access
+    const facLoginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'faculty.aces@kbtcoe.org',
+        password: 'AcesFaculty@2026',
+      }),
+    });
+    const facLoginData = await facLoginRes.json();
+    assert(facLoginRes.status === 200 && facLoginData.user?.role === 'FACULTY', 'Faculty Coordinator logs in with role FACULTY');
+    const facultyToken = facLoginData.token;
+
+    // Faculty can post an activity/achievement
+    const facActRes = await fetch(`${baseUrl}/api/v1/activities`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${facultyToken}`,
+      },
+      body: JSON.stringify({
+        title: 'Departmental Faculty Expert Talk on LLMs',
+        type: 'ACTIVITY',
+        description: 'Interactive departmental session on Generative AI and autonomous software engineering agents.',
+        date: '2026-11-20',
+        tags: ['AI', 'Faculty', 'Department'],
+      }),
+    });
+    const facActData = await facActRes.json();
+    assert(facActRes.status === 201 && facActData.item?.title?.includes('LLMs'), 'Faculty Coordinator successfully creates departmental activity');
+
+    // Faculty is FORBIDDEN from deleting events
+    const facDelEventRes = await fetch(`${baseUrl}/api/v1/events/dummy-event-id`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${facultyToken}` },
+    });
+    assert(facDelEventRes.status === 403, 'RBAC Enforced: Faculty account is forbidden from deleting events (403 Forbidden)');
+
+    // 25. RBAC: Club President Authentication & Event/Team Access
+    const presLoginRes = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'president.aces@kbtcoe.org',
+        password: 'AcesPresident@2026',
+      }),
+    });
+    const presLoginData = await presLoginRes.json();
+    assert(presLoginRes.status === 200 && presLoginData.user?.role === 'PRESIDENT', 'Club President logs in with role PRESIDENT');
+    const presidentToken = presLoginData.token;
+
+    // President can create an event
+    const presEventRes = await fetch(`${baseUrl}/api/v1/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${presidentToken}`,
+      },
+      body: JSON.stringify({
+        title: `ACES Gaming Arena ${Date.now()}`,
+        slug: `aces-gaming-arena-${Date.now()}`,
+        description: 'Annual departmental esports and strategic simulation tournament.',
+        category: 'CHALLENGE',
+        venue: 'Computer Lab 03',
+        startDate: '2026-12-05T10:00:00Z',
+        registrationDeadline: '2026-12-04T23:59:59Z',
+        capacity: 64,
+        eligibility: 'OPEN_TO_ALL',
+        status: 'PUBLISHED',
+      }),
+    });
+    const presEventData = await presEventRes.json();
+    assert(presEventRes.status === 201 && presEventData.event?.category === 'CHALLENGE', 'Club President successfully creates departmental event');
+
+    // President is FORBIDDEN from modifying website CMS branding content (Superadmin only)
+    const presCmsRes = await fetch(`${baseUrl}/api/v1/content/branding`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${presidentToken}`,
+      },
+      body: JSON.stringify({ data: { headline: 'Hacked Headline' } }),
+    });
+    assert(presCmsRes.status === 403, 'RBAC Enforced: President account is forbidden from modifying website CMS branding (403 Forbidden)');
+
+    // President is FORBIDDEN from modifying user security roles (Superadmin only)
+    const presRoleRes = await fetch(`${baseUrl}/api/v1/admin/users/dummy-id`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${presidentToken}`,
+      },
+      body: JSON.stringify({ role: 'SUPER_ADMIN' }),
+    });
+    assert(presRoleRes.status === 403, 'RBAC Enforced: President account is forbidden from assigning user security roles (403 Forbidden)');
+
+    // 26. Content Image Upload (Change Group Photo / Logo)
+    const mockGroupPhoto = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    const contentFormData = new FormData();
+    contentFormData.append('image', new Blob([mockGroupPhoto], { type: 'image/png' }), 'new-group-photo.png');
+
+    const uploadPhotoRes = await fetch(`${baseUrl}/api/v1/content/upload-image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+      body: contentFormData,
+    });
+    const uploadPhotoData = await uploadPhotoRes.json();
+    assert(
+      uploadPhotoRes.status === 200 && uploadPhotoData.success && uploadPhotoData.url,
+      'Superadmin uploads new Group Photo via CMS photo control endpoint'
+    );
+
+    // 27. Team Member Photo Upload
+    const teamPhotoFormData = new FormData();
+    teamPhotoFormData.append('photo', new Blob([mockGroupPhoto], { type: 'image/png' }), 'member.png');
+
+    const uploadMemberRes = await fetch(`${baseUrl}/api/v1/team/upload-photo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${presidentToken}` }, // President or Superadmin
+      body: teamPhotoFormData,
+    });
+    const uploadMemberData = await uploadMemberRes.json();
+    assert(
+      uploadMemberRes.status === 200 && uploadMemberData.success && uploadMemberData.url,
+      'Team photo endpoint successfully processes member photo upload'
+    );
 
   } catch (err) {
     console.error('Test execution error:', err);

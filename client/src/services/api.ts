@@ -130,6 +130,8 @@ export const api = {
     delete: (id: string) => request(`/team/${id}`, { method: 'DELETE' }),
     reorder: (orderedIds: string[]) =>
       request('/team/reorder', { method: 'PATCH', body: JSON.stringify({ orderedIds }) }),
+    uploadPhoto: (formData: FormData) =>
+      request('/team/upload-photo', { method: 'POST', body: formData }),
   },
 
   // Activities
@@ -173,6 +175,8 @@ export const api = {
   content: {
     get: (key: string) => request(`/content/${key}`),
     update: (key: string, data: any) => request(`/content/${key}`, { method: 'PUT', body: JSON.stringify({ data }) }),
+    uploadImage: (formData: FormData) =>
+      request('/content/upload-image', { method: 'POST', body: formData }),
   },
 
   // Admin

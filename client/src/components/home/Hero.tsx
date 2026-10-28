@@ -1,10 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, ArrowDown, Calendar, Sparkles, Users } from 'lucide-react';
+import { api } from '../../services/api.js';
 
 export const Hero: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [groupPhotoUrl, setGroupPhotoUrl] = useState<string>('/assets/aces-team.jpg');
+
+  useEffect(() => {
+    const fetchBranding = async () => {
+      try {
+        const res = await api.content.get('branding');
+        if (res.success && res.data?.groupPhotoUrl) {
+          setGroupPhotoUrl(res.data.groupPhotoUrl);
+        }
+      } catch {
+        // Fallback to /assets/aces-team.jpg
+      }
+    };
+    fetchBranding();
+  }, []);
 
   // Subtle animated technical particle constellation background
   useEffect(() => {
@@ -204,7 +220,7 @@ export const Hero: React.FC = () => {
             <div className="relative rounded-2xl overflow-hidden border border-white/15 bg-navy-850/70 p-3 shadow-2xl shadow-black/80">
               <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-navy-900 group">
                 <img
-                  src="/assets/aces-team.jpg"
+                  src={groupPhotoUrl}
                   alt="ACES KBTCOE Executive Team 2026-27"
                   className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                 />

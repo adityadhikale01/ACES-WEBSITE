@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { TeamMember } from '../models/TeamMember.js';
+import { uploadGalleryMedia } from '../services/storageService.js';
 
 export const teamMemberSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -102,6 +103,19 @@ export const deleteTeamMember = async (req: Request, res: Response): Promise<voi
       return;
     }
     res.json({ success: true, message: 'Team member deleted' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const uploadTeamPhoto = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'Team member photo file is required' });
+      return;
+    }
+    const result = await uploadGalleryMedia(req.file, 'aces_kbtcoe_team');
+    res.json({ success: true, url: result.url, storageProvider: result.storageProvider });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -212,7 +212,7 @@ export const getPaymentScreenshot = async (req: AuthRequest, res: Response): Pro
 
     // IDOR protection
     const isOwner = submission.userId.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === 'ADMIN';
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'].includes(req.user.role);
 
     if (!isOwner && !isAdmin) {
       res.status(403).json({

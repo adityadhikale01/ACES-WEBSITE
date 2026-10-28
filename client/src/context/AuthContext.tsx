@@ -6,6 +6,9 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isFaculty: boolean;
+  isPresident: boolean;
   isApprovedMember: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -62,7 +65,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user ? ['SUPER_ADMIN', 'ADMIN', 'FACULTY', 'PRESIDENT'].includes(user.role) : false;
+  const isSuperAdmin = user ? ['SUPER_ADMIN', 'ADMIN'].includes(user.role) : false;
+  const isFaculty = user?.role === 'FACULTY';
+  const isPresident = user?.role === 'PRESIDENT';
   const isApprovedMember = !!user?.isApprovedMember;
 
   return (
@@ -71,6 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated,
         isAdmin,
+        isSuperAdmin,
+        isFaculty,
+        isPresident,
         isApprovedMember,
         isLoading,
         login,

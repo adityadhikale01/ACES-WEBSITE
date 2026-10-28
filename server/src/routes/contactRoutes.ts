@@ -5,15 +5,15 @@ import {
   markMessageRead,
   contactSchema,
 } from '../controllers/contactController.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireContactAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
 const router = Router();
 
 router.post('/', validate(contactSchema), submitContact);
 
-// Admin endpoints
-router.get('/', authenticate, requireAdmin, getContactMessages);
-router.patch('/:id', authenticate, requireAdmin, markMessageRead);
+// Messages inbox endpoints (SUPER_ADMIN, ADMIN, PRESIDENT)
+router.get('/', authenticate, requireContactAdmin, getContactMessages);
+router.patch('/:id', authenticate, requireContactAdmin, markMessageRead);
 
 export default router;

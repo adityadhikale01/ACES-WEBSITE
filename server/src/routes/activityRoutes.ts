@@ -6,16 +6,16 @@ import {
   deleteActivity,
   activitySchema,
 } from '../controllers/activitiesController.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireActivityAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
 const router = Router();
 
 router.get('/', getActivities);
 
-// Admin endpoints
-router.post('/', authenticate, requireAdmin, validate(activitySchema), createActivity);
-router.put('/:id', authenticate, requireAdmin, validate(activitySchema.partial()), updateActivity);
-router.delete('/:id', authenticate, requireAdmin, deleteActivity);
+// Faculty & Superadmin Endpoints (SUPER_ADMIN, ADMIN, FACULTY)
+router.post('/', authenticate, requireActivityAdmin, validate(activitySchema), createActivity);
+router.put('/:id', authenticate, requireActivityAdmin, validate(activitySchema.partial()), updateActivity);
+router.delete('/:id', authenticate, requireActivityAdmin, deleteActivity);
 
 export default router;

@@ -21,7 +21,8 @@ export const seedDatabase = async () => {
       console.log('[Seed] Connected to MongoDB for seeding');
     }
 
-    // 1. Seed Admin User
+    // 1. Seed Real-Life Role-Based Administrative Accounts
+    // 1a. Super Admin (Full control)
     const adminEmail = (process.env.ADMIN_EMAIL || 'aces.kbtcoe@gmail.com').toLowerCase();
     const adminPassword = process.env.ADMIN_PASSWORD || 'AcesAdmin@2026';
     const existingAdmin = await User.findOne({ email: adminEmail });
@@ -29,18 +30,55 @@ export const seedDatabase = async () => {
     if (!existingAdmin) {
       const passwordHash = await bcrypt.hash(adminPassword, 10);
       await User.create({
-        fullName: 'ACES Faculty & Lead Admin',
+        fullName: 'ACES Superadmin & Lead Coordinator',
         email: adminEmail,
         passwordHash,
-        role: 'ADMIN',
+        role: 'SUPER_ADMIN',
         department: 'Computer Engineering',
         academicYear: 'FACULTY',
         phone: '+91 253 2571439',
         isApprovedMember: true,
       });
-      console.log(`[Seed] Initial Admin created: ${adminEmail}`);
+      console.log(`[Seed] Superadmin created: ${adminEmail}`);
     } else {
-      console.log(`[Seed] Admin already exists: ${adminEmail}`);
+      await User.updateOne({ email: adminEmail }, { $set: { role: 'SUPER_ADMIN' } });
+      console.log(`[Seed] Superadmin role verified: ${adminEmail}`);
+    }
+
+    // 1b. Faculty Coordinator (Activities & Achievements access)
+    const facultyEmail = 'faculty.aces@kbtcoe.org';
+    const existingFaculty = await User.findOne({ email: facultyEmail });
+    if (!existingFaculty) {
+      const facultyPasswordHash = await bcrypt.hash('AcesFaculty@2026', 10);
+      await User.create({
+        fullName: 'Prof. Faculty Coordinator',
+        email: facultyEmail,
+        passwordHash: facultyPasswordHash,
+        role: 'FACULTY',
+        department: 'Computer Engineering',
+        academicYear: 'FACULTY',
+        phone: '+91 253 2571439',
+        isApprovedMember: true,
+      });
+      console.log(`[Seed] Faculty Coordinator account created: ${facultyEmail}`);
+    }
+
+    // 1c. Club President (Team, Events, Applications, Messages access)
+    const presidentEmail = 'president.aces@kbtcoe.org';
+    const existingPresident = await User.findOne({ email: presidentEmail });
+    if (!existingPresident) {
+      const presPasswordHash = await bcrypt.hash('AcesPresident@2026', 10);
+      await User.create({
+        fullName: 'Aditya Dhikale (Club President)',
+        email: presidentEmail,
+        passwordHash: presPasswordHash,
+        role: 'PRESIDENT',
+        department: 'Computer Engineering',
+        academicYear: 'BE',
+        phone: '+91 98765 43210',
+        isApprovedMember: true,
+      });
+      console.log(`[Seed] Club President account created: ${presidentEmail}`);
     }
 
     // 2. Seed Standard Designations
@@ -402,12 +440,24 @@ export const seedDatabase = async () => {
     }
 
     // 6. Seed Site Content (CMS)
-    const siteContentKeys = ['about_info', 'club_stats', 'contact_details', 'payment_settings'];
+    const siteContentKeys = ['about_info', 'club_stats', 'contact_details', 'payment_settings', 'branding'];
     for (const key of siteContentKeys) {
       const existing = await SiteContent.findOne({ key });
       if (!existing) {
         let data: any = {};
-        if (key === 'about_info') {
+        if (key === 'branding') {
+          data = {
+            groupPhotoUrl: '/assets/aces-team.jpg',
+            logoUrl: '/assets/aces-logo.jpeg',
+            heroBannerUrl: '',
+            headline: 'Where Ideas Meet Innovation.',
+            subtitle:
+              'Discover departmental activities, technical workshops, learning sessions, and the people who make ACES KBTCOE happen.',
+            contactEmail: 'aces.kbtcoe@gmail.com',
+            contactPhone: '+91 253 2571439',
+            campusLocation: 'Department of Computer Engineering, NDMVP KBTCOE, Nashik - 422013',
+          };
+        } else if (key === 'about_info') {
           data = {
             fullName: "Computer Engineering Students' Association",
             shortName: 'ACES KBTCOE',

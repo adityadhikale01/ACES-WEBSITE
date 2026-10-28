@@ -6,7 +6,7 @@ import {
   reviewApplication,
   applicationSchema,
 } from '../controllers/membershipController.js';
-import { authenticate, optionalAuth, requireAdmin } from '../middleware/auth.js';
+import { authenticate, optionalAuth, requireMembershipAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 
 const router = Router();
@@ -14,8 +14,8 @@ const router = Router();
 router.post('/', optionalAuth, validate(applicationSchema), submitApplication);
 router.get('/my', authenticate, getMyApplication);
 
-// Admin endpoints
-router.get('/all', authenticate, requireAdmin, getAllApplications);
-router.patch('/:id/review', authenticate, requireAdmin, reviewApplication);
+// Membership Review endpoints (SUPER_ADMIN, ADMIN, PRESIDENT)
+router.get('/all', authenticate, requireMembershipAdmin, getAllApplications);
+router.patch('/:id/review', authenticate, requireMembershipAdmin, reviewApplication);
 
 export default router;

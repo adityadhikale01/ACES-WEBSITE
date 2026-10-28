@@ -19,14 +19,22 @@ export const TeamPage: React.FC = () => {
     all: [],
   });
 
+  const [groupPhotoUrl, setGroupPhotoUrl] = useState<string>('/assets/aces-team.jpg');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTeam = async () => {
       try {
-        const res = await api.team.getAll();
+        const [res, brandRes] = await Promise.all([
+          api.team.getAll(),
+          api.content.get('branding').catch(() => ({ success: false })),
+        ]);
+
         if (res.success && res.team) {
           setTeam(res.team);
+        }
+        if (brandRes.success && brandRes.data?.groupPhotoUrl) {
+          setGroupPhotoUrl(brandRes.data.groupPhotoUrl);
         }
       } catch (err) {
         console.error('Failed to load team data:', err);
@@ -67,7 +75,7 @@ export const TeamPage: React.FC = () => {
         >
           <div className="relative rounded-2xl overflow-hidden aspect-[16/9] sm:aspect-[21/9] bg-navy-900 group">
             <img
-              src="/assets/aces-team.jpg"
+              src={groupPhotoUrl}
               alt="ACES KBTCOE Official Committee Group Photograph 2026-27"
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
             />

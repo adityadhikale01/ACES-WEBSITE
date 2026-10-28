@@ -1,9 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, ArrowUpRight, Award, Shield } from 'lucide-react';
+import { api } from '../../services/api.js';
 
 export const TeamPreview: React.FC = () => {
+  const [groupPhotoUrl, setGroupPhotoUrl] = useState<string>('/assets/aces-team.jpg');
+
+  useEffect(() => {
+    const fetchBranding = async () => {
+      try {
+        const res = await api.content.get('branding');
+        if (res.success && res.data?.groupPhotoUrl) {
+          setGroupPhotoUrl(res.data.groupPhotoUrl);
+        }
+      } catch {
+        // Fallback to /assets/aces-team.jpg
+      }
+    };
+    fetchBranding();
+  }, []);
   return (
     <section className="py-24 bg-navy-900/90 relative border-t border-slate-800/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -36,7 +52,7 @@ export const TeamPreview: React.FC = () => {
           >
             <div className="relative rounded-2xl overflow-hidden aspect-[16/9] bg-navy-900 group">
               <img
-                src="/assets/aces-team.jpg"
+                src={groupPhotoUrl}
                 alt="ACES KBTCOE Full Committee 2026-27"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />

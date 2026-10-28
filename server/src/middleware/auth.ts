@@ -88,7 +88,7 @@ export const requireRole = (...roles: UserRole[]) => {
     if (!roles.includes(req.user.role)) {
       res.status(403).json({
         success: false,
-        message: 'Access forbidden. You do not have permission to perform this action.',
+        message: `Access forbidden. Required role: [${roles.join(', ')}]. Your current role is: ${req.user.role}.`,
       });
       return;
     }
@@ -97,4 +97,13 @@ export const requireRole = (...roles: UserRole[]) => {
   };
 };
 
-export const requireAdmin = requireRole('ADMIN');
+// Granular Role Guards for ACES Departmental Club
+export const requireSuperAdmin = requireRole('SUPER_ADMIN', 'ADMIN');
+export const requireEventAdmin = requireRole('SUPER_ADMIN', 'ADMIN', 'PRESIDENT');
+export const requireTeamAdmin = requireRole('SUPER_ADMIN', 'ADMIN', 'PRESIDENT');
+export const requireActivityAdmin = requireRole('SUPER_ADMIN', 'ADMIN', 'FACULTY');
+export const requireMembershipAdmin = requireRole('SUPER_ADMIN', 'ADMIN', 'PRESIDENT');
+export const requireContactAdmin = requireRole('SUPER_ADMIN', 'ADMIN', 'PRESIDENT');
+
+// General admin guard (permits SUPER_ADMIN, ADMIN, FACULTY, PRESIDENT)
+export const requireAdmin = requireRole('SUPER_ADMIN', 'ADMIN', 'FACULTY', 'PRESIDENT');

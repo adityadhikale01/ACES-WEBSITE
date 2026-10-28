@@ -13,6 +13,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.js';
+import { api } from '../../services/api.js';
 
 const mainLinks = [
   { label: 'Home', path: '/' },
@@ -32,6 +33,7 @@ export const Navbar: React.FC = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isExploreOpen, setIsExploreOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>('/assets/aces-logo.jpeg');
 
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
@@ -41,6 +43,17 @@ export const Navbar: React.FC = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener('scroll', handleScroll);
+
+    // Fetch custom branding logo if set
+    api.content
+      .get('branding')
+      .then((res) => {
+        if (res.success && res.data?.logoUrl) {
+          setLogoUrl(res.data.logoUrl);
+        }
+      })
+      .catch(() => {});
+
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -74,7 +87,7 @@ export const Navbar: React.FC = () => {
             <Link to="/" onClick={closeMobile} className="flex items-center gap-3 group">
               <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center p-0.5 group-hover:border-electric-cyan/50 transition-colors">
                 <img
-                  src="/assets/aces-logo.jpeg"
+                  src={logoUrl}
                   alt="ACES KBTCOE Logo"
                   className="w-full h-full object-contain"
                   onError={(e) => {

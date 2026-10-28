@@ -34,6 +34,8 @@ import {
   Briefcase,
   Globe,
   Sliders,
+  Shield,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { api } from '../services/api.js';
@@ -46,6 +48,7 @@ import {
   TeamMember,
   EventGalleryAlbum,
   ActivityItem,
+  UserRole,
 } from '../types/index.js';
 
 type AdminTab =
@@ -63,10 +66,112 @@ type AdminTab =
   | 'settings';
 
 export const AdminDashboard: React.FC = () => {
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin, isSuperAdmin, isFaculty, isPresident } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const userRole = (user?.role || 'MEMBER') as UserRole;
+
+  // Determine accessible tabs based on Role-Based Access Control (RBAC)
+  // Superadmin: Complete website control
+  // Faculty: Departmental activities & student achievements
+  // President: Team members, messages, new member applications, add/remove events and registration details
+  const allTabDefinitions: {
+    id: AdminTab;
+    label: string;
+    icon: any;
+    badgeKey?: string;
+    roles: string[];
+  }[] = [
+    {
+      id: 'overview',
+      label: '1. Overview',
+      icon: Layers,
+      roles: ['SUPER_ADMIN', 'ADMIN', 'FACULTY', 'PRESIDENT'],
+    },
+    {
+      id: 'events',
+      label: '2. Events',
+      icon: Calendar,
+      badgeKey: 'events',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'registrations',
+      label: '3. Registrations',
+      icon: Users,
+      badgeKey: 'registrations',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'payments',
+      label: '4. Payment Verification',
+      icon: CreditCard,
+      badgeKey: 'pendingPayments',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'team',
+      label: '5. Team Management',
+      icon: Briefcase,
+      badgeKey: 'team',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'gallery',
+      label: '6. Event Gallery',
+      icon: ImageIcon,
+      badgeKey: 'albums',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'activities',
+      label: '7. Activities & Achievements',
+      icon: Award,
+      badgeKey: 'activities',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'FACULTY'],
+    },
+    {
+      id: 'applications',
+      label: '8. Membership Apps',
+      icon: FileCheck,
+      badgeKey: 'pendingApplications',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'members',
+      label: '9. Members & Roles',
+      icon: Users,
+      badgeKey: 'users',
+      roles: ['SUPER_ADMIN', 'ADMIN'],
+    },
+    {
+      id: 'cms',
+      label: '10. Website Content & Photos',
+      icon: Globe,
+      roles: ['SUPER_ADMIN', 'ADMIN'],
+    },
+    {
+      id: 'messages',
+      label: '11. Messages',
+      icon: Mail,
+      badgeKey: 'messages',
+      roles: ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'],
+    },
+    {
+      id: 'settings',
+      label: '12. Settings',
+      icon: SettingsIcon,
+      roles: ['SUPER_ADMIN', 'ADMIN'],
+    },
+  ];
+
+  const accessibleTabs = allTabDefinitions.filter((tab) =>
+    tab.roles.includes(userRole)
+  );
+
+  const [activeTab, setActiveTab] = useState<AdminTab>(
+    isFaculty ? 'activities' : 'overview'
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -134,9 +239,11 @@ export const AdminDashboard: React.FC = () => {
     refundPolicy: 'Non-refundable once confirmed.',
   });
 
-  // Team member modal
+  // Team member modal with Photo Upload
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [memberPhotoFile, setMemberPhotoFile] = useState<File | null>(null);
+  const [uploadingMemberPhoto, setUploadingMemberPhoto] = useState(false);
   const [teamForm, setTeamForm] = useState({
     name: '',
     designationId: '',
@@ -178,15 +285,50 @@ export const AdminDashboard: React.FC = () => {
   const [uploadMediaCaption, setUploadMediaCaption] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
+  // Activities & Achievements Modal
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [activityForm, setActivityForm] = useState({
+    title: '',
+    type: 'ACTIVITY',
+    description: '',
+    date: new Date().toISOString().split('T')[0],
+    tags: 'Department, Workshop',
+    imageUrl: '',
+    featured: false,
+  });
+
+  // Website Content (CMS) & Photo Uploads
+  const [branding, setBranding] = useState({
+    groupPhotoUrl: '/assets/aces-team.jpg',
+    logoUrl: '/assets/aces-logo.jpeg',
+    heroBannerUrl: '',
+    headline: 'Where Ideas Meet Innovation.',
+    subtitle:
+      'Discover departmental activities, technical workshops, learning sessions, and the people who make ACES KBTCOE happen.',
+    contactEmail: 'aces.kbtcoe@gmail.com',
+    contactPhone: '+91 253 2571439',
+    campusLocation: 'Department of Computer Engineering, NDMVP KBTCOE, Nashik - 422013',
+  });
+  const [groupPhotoFile, setGroupPhotoFile] = useState<File | null>(null);
+  const [uploadingGroupPhoto, setUploadingGroupPhoto] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [savingBranding, setSavingBranding] = useState(false);
+
   // Search and filter controls
   const [paymentSearch, setPaymentSearch] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
   const [memberSearch, setMemberSearch] = useState('');
 
-  // Load all admin data
+  // Load all admin data safely based on permissions
   const loadAllAdminData = async () => {
     try {
       setRefreshing(true);
+      const isFacOnly = userRole === 'FACULTY';
+      const isPres = userRole === 'PRESIDENT';
+      const isSuper = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+
       const [
         statsRes,
         evRes,
@@ -198,20 +340,26 @@ export const AdminDashboard: React.FC = () => {
         albRes,
         actRes,
         userRes,
+        brandRes,
       ] = await Promise.all([
-        api.admin.getStats(),
-        api.events.getAll(),
-        api.applications.getAll(),
-        api.contact.getAll(),
-        api.team.getAllAdmin ? api.team.getAllAdmin() : api.team.getAll(),
-        api.designations.getAllAdmin ? api.designations.getAllAdmin() : api.designations.getAll(),
-        api.payments.getAdminQueue(),
-        api.gallery.getAllAlbumsAdmin ? api.gallery.getAllAlbumsAdmin() : api.gallery.getAlbums(),
-        api.activities.getAll(),
-        api.admin.getUsers(),
+        api.admin.getStats().catch(() => ({ success: false })),
+        !isFacOnly ? api.events.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
+        !isFacOnly ? api.applications.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
+        !isFacOnly ? api.contact.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
+        !isFacOnly
+          ? (api.team.getAllAdmin ? api.team.getAllAdmin() : api.team.getAll()).catch(() => ({ success: false }))
+          : Promise.resolve({ success: false }),
+        !isFacOnly
+          ? (api.designations.getAllAdmin ? api.designations.getAllAdmin() : api.designations.getAll()).catch(() => ({ success: false }))
+          : Promise.resolve({ success: false }),
+        !isFacOnly ? api.payments.getAdminQueue().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
+        api.gallery.getAlbums().catch(() => ({ success: false })),
+        api.activities.getAll().catch(() => ({ success: false })),
+        isSuper ? api.admin.getUsers().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
+        api.content.get('branding').catch(() => ({ success: false })),
       ]);
 
-      if (statsRes.success) setStats(statsRes.stats);
+      if (statsRes.success && statsRes.stats) setStats(statsRes.stats);
       if (evRes.success && evRes.events) {
         setEvents(evRes.events);
         if (evRes.events.length > 0 && !selectedEventId) {
@@ -228,6 +376,9 @@ export const AdminDashboard: React.FC = () => {
       if (albRes.success && albRes.albums) setAlbums(albRes.albums);
       if (actRes.success && actRes.items) setActivities(actRes.items);
       if (userRes.success && userRes.users) setUsersList(userRes.users);
+      if (brandRes.success && brandRes.data) {
+        setBranding((prev) => ({ ...prev, ...brandRes.data }));
+      }
     } catch (err) {
       console.error('Failed to load admin dashboard data:', err);
     } finally {
@@ -250,7 +401,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Load attendees for selected event
   useEffect(() => {
-    if (!selectedEventId) return;
+    if (!selectedEventId || userRole === 'FACULTY') return;
     const fetchAttendees = async () => {
       try {
         setLoadingAttendees(true);
@@ -265,7 +416,7 @@ export const AdminDashboard: React.FC = () => {
       }
     };
     fetchAttendees();
-  }, [selectedEventId]);
+  }, [selectedEventId, userRole]);
 
   // Payment Verification Handler
   const handleReviewPayment = async (status: 'VERIFIED' | 'REJECTED' | 'RESUBMISSION_REQUESTED') => {
@@ -354,6 +505,29 @@ export const AdminDashboard: React.FC = () => {
       loadAllAdminData();
     } catch (err: any) {
       alert(err.message || 'Delete failed');
+    }
+  };
+
+  // Team Member Photo Upload Handler
+  const handleUploadMemberPhoto = async () => {
+    if (!memberPhotoFile) {
+      alert('Please select an image file first.');
+      return;
+    }
+    try {
+      setUploadingMemberPhoto(true);
+      const formData = new FormData();
+      formData.append('photo', memberPhotoFile);
+      const res = await api.team.uploadPhoto(formData);
+      if (res.success && res.url) {
+        setTeamForm((prev) => ({ ...prev, photoUrl: res.url }));
+        setMemberPhotoFile(null);
+        alert('Photo uploaded successfully! Preview updated below.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload member photo');
+    } finally {
+      setUploadingMemberPhoto(false);
     }
   };
 
@@ -475,6 +649,113 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Activity & Achievement Handlers
+  const handleSaveActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...activityForm,
+        tags: activityForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      };
+      if (editingActivityId) {
+        await api.activities.update(editingActivityId, payload);
+      } else {
+        await api.activities.create(payload);
+      }
+      setIsActivityModalOpen(false);
+      setEditingActivityId(null);
+      loadAllAdminData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to save activity');
+    }
+  };
+
+  const handleDeleteActivity = async (id: string) => {
+    if (!window.confirm('Delete this departmental activity / achievement?')) return;
+    try {
+      await api.activities.delete(id);
+      loadAllAdminData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete activity');
+    }
+  };
+
+  // Group Photo Upload Handler (CMS)
+  const handleUploadGroupPhoto = async () => {
+    if (!groupPhotoFile) {
+      alert('Please select a group photo file first.');
+      return;
+    }
+    try {
+      setUploadingGroupPhoto(true);
+      const formData = new FormData();
+      formData.append('image', groupPhotoFile);
+      const res = await api.content.uploadImage(formData);
+      if (res.success && res.url) {
+        const updatedBranding = { ...branding, groupPhotoUrl: res.url };
+        setBranding(updatedBranding);
+        await api.content.update('branding', updatedBranding);
+        setGroupPhotoFile(null);
+        alert('Official Group Photo uploaded and updated live on the website!');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload group photo');
+    } finally {
+      setUploadingGroupPhoto(false);
+    }
+  };
+
+  // Logo Upload Handler (CMS)
+  const handleUploadLogo = async () => {
+    if (!logoFile) {
+      alert('Please select a logo file first.');
+      return;
+    }
+    try {
+      setUploadingLogo(true);
+      const formData = new FormData();
+      formData.append('image', logoFile);
+      const res = await api.content.uploadImage(formData);
+      if (res.success && res.url) {
+        const updatedBranding = { ...branding, logoUrl: res.url };
+        setBranding(updatedBranding);
+        await api.content.update('branding', updatedBranding);
+        setLogoFile(null);
+        alert('Official Club Logo uploaded and updated live on the website!');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  // Save All Branding CMS Details
+  const handleSaveBranding = async () => {
+    try {
+      setSavingBranding(true);
+      await api.content.update('branding', branding);
+      alert('Website branding, photos, and contact info saved successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to save branding');
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
+  // User Security Role Update (Superadmin only)
+  const handleUpdateUserRole = async (userId: string, newRole: string) => {
+    try {
+      await api.admin.updateUser(userId, { role: newRole });
+      setUsersList((prev) =>
+        prev.map((u) => (u._id === userId ? { ...u, role: newRole } : u))
+      );
+      alert(`User role updated to ${newRole}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update user role');
+    }
+  };
+
   // Application Handlers
   const handleReviewApp = async (id: string, status: 'APPROVED' | 'REJECTED') => {
     const notes = prompt(`Optional feedback note for applicant (${status}):`) || '';
@@ -519,6 +800,38 @@ export const AdminDashboard: React.FC = () => {
 
   if (!isAdmin) return null;
 
+  // Role Badge Display
+  const getRoleBadge = () => {
+    if (userRole === 'SUPER_ADMIN' || userRole === 'ADMIN') {
+      return {
+        title: 'SUPERADMIN CONTROL CENTER',
+        desc: 'Full website, media, user roles & system control',
+        color: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      };
+    }
+    if (userRole === 'FACULTY') {
+      return {
+        title: 'FACULTY COORDINATOR CONTROL CENTER',
+        desc: 'Departmental activities & student achievements management',
+        color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      };
+    }
+    if (userRole === 'PRESIDENT') {
+      return {
+        title: 'CLUB PRESIDENT CONTROL CENTER',
+        desc: 'Team members, events, registrations, applications & messages',
+        color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+      };
+    }
+    return {
+      title: 'ADMIN ACCESS',
+      desc: 'ACES KBTCOE Departmental Club',
+      color: 'bg-white/10 text-slate-300 border-white/10',
+    };
+  };
+
+  const roleBadge = getRoleBadge();
+
   return (
     <div className="pt-24 pb-20 min-h-screen bg-navy-950 text-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -526,13 +839,13 @@ export const AdminDashboard: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                ADMIN CONTROL CENTER
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${roleBadge.color}`}>
+                {roleBadge.title}
               </span>
-              <span className="text-xs text-slate-500 font-medium">Department of Computer Engineering</span>
+              <span className="text-xs text-slate-500 font-medium">{roleBadge.desc}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              ACES KBTCOE Management Suite
+              ACES KBTCOE Operations Suite
             </h1>
           </div>
 
@@ -560,41 +873,30 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 12-Section Navigation Bar */}
+        {/* Dynamic RBAC Navigation Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-8 scrollbar-none border-b border-white/5">
-          {[
-            { id: 'overview', label: '1. Overview', icon: Layers, badge: null },
-            { id: 'events', label: '2. Events', icon: Calendar, badge: events.length },
-            { id: 'registrations', label: '3. Registrations', icon: Users, badge: stats.totalRegistrations },
-            {
-              id: 'payments',
-              label: '4. Payment Verification',
-              icon: CreditCard,
-              badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null,
-              alert: pendingPaymentsCount > 0,
-            },
-            { id: 'team', label: '5. Team Management', icon: Briefcase, badge: teamList.length },
-            { id: 'gallery', label: '6. Event Gallery', icon: ImageIcon, badge: albums.length },
-            { id: 'activities', label: '7. Activities', icon: Award, badge: activities.length },
-            {
-              id: 'applications',
-              label: '8. Membership Apps',
-              icon: FileCheck,
-              badge: stats.pendingApplications > 0 ? stats.pendingApplications : null,
-              alert: stats.pendingApplications > 0,
-            },
-            { id: 'members', label: '9. Members', icon: Users, badge: usersList.length },
-            { id: 'cms', label: '10. Website Content', icon: Globe, badge: null },
-            {
-              id: 'messages',
-              label: '11. Messages',
-              icon: Mail,
-              badge: stats.unreadMessages > 0 ? stats.unreadMessages : null,
-            },
-            { id: 'settings', label: '12. Settings', icon: SettingsIcon, badge: null },
-          ].map((tab) => {
+          {accessibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+
+            let badgeValue: number | null = null;
+            let isAlert = false;
+            if (tab.id === 'events') badgeValue = events.length;
+            if (tab.id === 'registrations') badgeValue = stats.totalRegistrations;
+            if (tab.id === 'payments') {
+              badgeValue = pendingPaymentsCount;
+              isAlert = pendingPaymentsCount > 0;
+            }
+            if (tab.id === 'team') badgeValue = teamList.length;
+            if (tab.id === 'gallery') badgeValue = albums.length;
+            if (tab.id === 'activities') badgeValue = activities.length;
+            if (tab.id === 'applications') {
+              badgeValue = stats.pendingApplications;
+              isAlert = stats.pendingApplications > 0;
+            }
+            if (tab.id === 'members') badgeValue = usersList.length;
+            if (tab.id === 'messages') badgeValue = stats.unreadMessages;
+
             return (
               <button
                 key={tab.id}
@@ -607,13 +909,13 @@ export const AdminDashboard: React.FC = () => {
               >
                 <Icon size={13} />
                 <span>{tab.label}</span>
-                {tab.badge !== null && (
+                {badgeValue !== null && badgeValue > 0 && (
                   <span
                     className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      tab.alert ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-300'
+                      isAlert ? 'bg-amber-500 text-black' : 'bg-white/10 text-slate-300'
                     }`}
                   >
-                    {tab.badge}
+                    {badgeValue}
                   </span>
                 )}
               </button>
@@ -659,62 +961,91 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Actions Panel */}
+            {/* Quick Actions Panel Tailored to Current Role */}
             <div className="p-6 rounded-3xl bg-navy-900 border border-white/10">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">
-                Operational Quick Links
+                Operational Shortcuts for {userRole.replace('_', ' ')}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <button
-                  onClick={() => {
-                    setActiveTab('payments');
-                  }}
-                  className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left hover:bg-amber-500/20 transition-all"
-                >
-                  <div className="text-amber-300 font-bold text-xs flex items-center justify-between">
-                    <span>Payment Verification</span>
-                    <CreditCard size={15} />
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    {pendingPaymentsCount} receipts pending review
-                  </p>
-                </button>
+                {(isSuperAdmin || isPresident) && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('payments')}
+                      className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left hover:bg-amber-500/20 transition-all"
+                    >
+                      <div className="text-amber-300 font-bold text-xs flex items-center justify-between">
+                        <span>Payment Verification</span>
+                        <CreditCard size={15} />
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {pendingPaymentsCount} receipts pending review
+                      </p>
+                    </button>
 
-                <button
-                  onClick={() => {
-                    setEditingEventId(null);
-                    setIsEventModalOpen(true);
-                  }}
-                  className="p-4 rounded-2xl bg-electric-blue/10 border border-electric-blue/20 text-left hover:bg-electric-blue/20 transition-all"
-                >
-                  <div className="text-electric-cyan font-bold text-xs flex items-center justify-between">
-                    <span>+ Add New Event</span>
-                    <Plus size={15} />
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Configure free or paid departmental event</p>
-                </button>
+                    <button
+                      onClick={() => {
+                        setEditingEventId(null);
+                        setIsEventModalOpen(true);
+                      }}
+                      className="p-4 rounded-2xl bg-electric-blue/10 border border-electric-blue/20 text-left hover:bg-electric-blue/20 transition-all"
+                    >
+                      <div className="text-electric-cyan font-bold text-xs flex items-center justify-between">
+                        <span>+ Add New Event</span>
+                        <Plus size={15} />
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">Configure free or paid departmental event</p>
+                    </button>
 
-                <button
-                  onClick={() => setActiveTab('team')}
-                  className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-left hover:bg-indigo-500/20 transition-all"
-                >
-                  <div className="text-indigo-300 font-bold text-xs flex items-center justify-between">
-                    <span>Manage Team & Roles</span>
-                    <Briefcase size={15} />
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">{teamList.length} committee members listed</p>
-                </button>
+                    <button
+                      onClick={() => setActiveTab('team')}
+                      className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-left hover:bg-indigo-500/20 transition-all"
+                    >
+                      <div className="text-indigo-300 font-bold text-xs flex items-center justify-between">
+                        <span>Manage Team & Photos</span>
+                        <Briefcase size={15} />
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">{teamList.length} committee members listed</p>
+                    </button>
+                  </>
+                )}
 
-                <button
-                  onClick={() => setActiveTab('gallery')}
-                  className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-left hover:bg-teal-500/20 transition-all"
-                >
-                  <div className="text-teal-300 font-bold text-xs flex items-center justify-between">
-                    <span>Event Photo Gallery</span>
-                    <ImageIcon size={15} />
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Upload photos/videos for past events</p>
-                </button>
+                {(isSuperAdmin || isFaculty) && (
+                  <button
+                    onClick={() => {
+                      setEditingActivityId(null);
+                      setActivityForm({
+                        title: '',
+                        type: 'ACTIVITY',
+                        description: '',
+                        date: new Date().toISOString().split('T')[0],
+                        tags: 'Department, Workshop',
+                        imageUrl: '',
+                        featured: false,
+                      });
+                      setIsActivityModalOpen(true);
+                    }}
+                    className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-left hover:bg-emerald-500/20 transition-all"
+                  >
+                    <div className="text-emerald-300 font-bold text-xs flex items-center justify-between">
+                      <span>+ Departmental Activity</span>
+                      <Award size={15} />
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">Post workshop or student achievement</p>
+                  </button>
+                )}
+
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => setActiveTab('cms')}
+                    className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-left hover:bg-teal-500/20 transition-all"
+                  >
+                    <div className="text-teal-300 font-bold text-xs flex items-center justify-between">
+                      <span>Change Website Photos</span>
+                      <UploadCloud size={15} />
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">Upload new Group Photo or Club Logo</p>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -723,7 +1054,7 @@ export const AdminDashboard: React.FC = () => {
         {/* ========================================================================= */}
         {/* SECTION 2: EVENTS */}
         {/* ========================================================================= */}
-        {activeTab === 'events' && (
+        {activeTab === 'events' && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
@@ -840,7 +1171,7 @@ export const AdminDashboard: React.FC = () => {
         {/* ========================================================================= */}
         {/* SECTION 3: EVENT REGISTRATIONS */}
         {/* ========================================================================= */}
-        {activeTab === 'registrations' && (
+        {activeTab === 'registrations' && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -966,7 +1297,7 @@ export const AdminDashboard: React.FC = () => {
         {/* ========================================================================= */}
         {/* SECTION 4: PAYMENT VERIFICATION */}
         {/* ========================================================================= */}
-        {activeTab === 'payments' && (
+        {activeTab === 'payments' && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -1083,16 +1414,16 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 5: TEAM MANAGEMENT */}
+        {/* SECTION 5: TEAM MANAGEMENT (With Photo Upload) */}
         {/* ========================================================================= */}
-        {activeTab === 'team' && (
+        {activeTab === 'team' && (isSuperAdmin || isPresident) && (
           <div className="space-y-8">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-white">Committee Team & Configurable Roles</h2>
                 <p className="text-xs text-slate-400">
-                  Assign designations, change public display order, and upload profile photos
+                  Upload member photos, assign designations, and reorder members
                 </p>
               </div>
 
@@ -1106,6 +1437,7 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   onClick={() => {
                     setEditingMemberId(null);
+                    setMemberPhotoFile(null);
                     setTeamForm({
                       name: '',
                       designationId: designations[0]?._id || '',
@@ -1163,7 +1495,7 @@ export const AdminDashboard: React.FC = () => {
                 <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
                   <tr>
                     <th className="py-3 px-4">Order</th>
-                    <th className="py-3 px-4">Member</th>
+                    <th className="py-3 px-4">Member Photo & Name</th>
                     <th className="py-3 px-4">Public Designation</th>
                     <th className="py-3 px-4">Department / Year</th>
                     <th className="py-3 px-4">Published</th>
@@ -1198,7 +1530,7 @@ export const AdminDashboard: React.FC = () => {
                         <img
                           src={m.photoUrl}
                           alt={m.name}
-                          className="w-9 h-9 rounded-full object-cover border border-white/20"
+                          className="w-10 h-10 rounded-full object-cover border border-white/20 shadow"
                         />
                         <div>
                           <strong className="text-white block">{m.name}</strong>
@@ -1235,6 +1567,7 @@ export const AdminDashboard: React.FC = () => {
                         <button
                           onClick={() => {
                             setEditingMemberId(m._id);
+                            setMemberPhotoFile(null);
                             setTeamForm({
                               name: m.name,
                               designationId:
@@ -1256,7 +1589,7 @@ export const AdminDashboard: React.FC = () => {
                           }}
                           className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300"
                         >
-                          Edit
+                          Edit & Change Photo
                         </button>
                         <button
                           onClick={() => handleDeleteTeamMember(m._id)}
@@ -1276,7 +1609,7 @@ export const AdminDashboard: React.FC = () => {
         {/* ========================================================================= */}
         {/* SECTION 6: EVENT GALLERY */}
         {/* ========================================================================= */}
-        {activeTab === 'gallery' && (
+        {activeTab === 'gallery' && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -1350,45 +1683,106 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 7: ACTIVITIES & ACHIEVEMENTS */}
+        {/* SECTION 7: ACTIVITIES & ACHIEVEMENTS (FACULTY & SUPERADMIN) */}
         {/* ========================================================================= */}
-        {activeTab === 'activities' && (
+        {activeTab === 'activities' && (isSuperAdmin || isFaculty) && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Departmental Activities & Achievements</h2>
-                <p className="text-xs text-slate-400">Manage timeline items shown on the public Activities page</p>
+                <h2 className="text-lg font-bold text-white">Departmental Activities & Student Achievements</h2>
+                <p className="text-xs text-slate-400">
+                  Add and manage student technical workshops, hackathons, and departmental awards
+                </p>
               </div>
+
+              <button
+                onClick={() => {
+                  setEditingActivityId(null);
+                  setActivityForm({
+                    title: '',
+                    type: 'ACTIVITY',
+                    description: '',
+                    date: new Date().toISOString().split('T')[0],
+                    tags: 'Department, Workshop',
+                    imageUrl: '',
+                    featured: false,
+                  });
+                  setIsActivityModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+              >
+                <Plus size={14} />
+                <span>Add Activity / Achievement</span>
+              </button>
             </div>
 
             <div className="space-y-3">
-              {activities.map((act) => (
-                <div
-                  key={act._id}
-                  className="p-4 rounded-2xl bg-navy-900 border border-white/10 flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-amber-400">
-                      <Award size={18} />
+              {activities.length === 0 ? (
+                <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
+                  No departmental activities or achievements listed yet. Click "+ Add Activity / Achievement" to create one.
+                </div>
+              ) : (
+                activities.map((act) => (
+                  <div
+                    key={act._id}
+                    className="p-5 rounded-2xl bg-navy-900 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-amber-400 shrink-0">
+                        <Award size={20} />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-white">{act.title}</h4>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-amber-300 border border-white/10">
+                            {act.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed">{act.description}</p>
+                        <div className="text-[10px] text-slate-400 pt-1">
+                          Date: {new Date(act.date).toLocaleDateString()}
+                          {act.tags?.length > 0 && ` • Tags: ${act.tags.join(', ')}`}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">{act.title}</h4>
-                      <p className="text-[11px] text-slate-400">{act.description}</p>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => {
+                          setEditingActivityId(act._id);
+                          setActivityForm({
+                            title: act.title,
+                            type: act.type,
+                            description: act.description,
+                            date: act.date ? act.date.substring(0, 10) : '',
+                            tags: act.tags?.join(', ') || '',
+                            imageUrl: act.imageUrl || '',
+                            featured: act.featured || false,
+                          });
+                          setIsActivityModalOpen(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-xs"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteActivity(act._id)}
+                        className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-slate-300 border border-white/10">
-                    {act.type}
-                  </span>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 8: MEMBERSHIP APPLICATIONS */}
+        {/* SECTION 8: MEMBERSHIP APPLICATIONS (SUPERADMIN & PRESIDENT) */}
         {/* ========================================================================= */}
-        {activeTab === 'applications' && (
+        {activeTab === 'applications' && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-white">
@@ -1472,14 +1866,16 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 9: MEMBER MANAGEMENT */}
+        {/* SECTION 9: MEMBER MANAGEMENT & USER ROLES (SUPERADMIN ONLY) */}
         {/* ========================================================================= */}
-        {activeTab === 'members' && (
+        {activeTab === 'members' && isSuperAdmin && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Registered Users & Members ({usersList.length})</h2>
-                <p className="text-xs text-slate-400">View user security roles and membership status</p>
+                <h2 className="text-lg font-bold text-white">Registered Users & Role Assignment ({usersList.length})</h2>
+                <p className="text-xs text-slate-400">
+                  Assign administrative privileges (SUPER_ADMIN, FACULTY, PRESIDENT) or approve club members
+                </p>
               </div>
 
               <input
@@ -1497,7 +1893,7 @@ export const AdminDashboard: React.FC = () => {
                   <tr>
                     <th className="py-3 px-4">User</th>
                     <th className="py-3 px-4">Department / Year</th>
-                    <th className="py-3 px-4">Security Role</th>
+                    <th className="py-3 px-4">Administrative Role</th>
                     <th className="py-3 px-4">Club Member Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -1520,13 +1916,25 @@ export const AdminDashboard: React.FC = () => {
                           {u.department} • <span className="font-semibold text-white">{u.academicYear || 'SE'}</span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              u.role === 'ADMIN' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/5 text-slate-300'
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                              u.role === 'SUPER_ADMIN' || u.role === 'ADMIN'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                : u.role === 'FACULTY'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                : u.role === 'PRESIDENT'
+                                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                                : 'bg-navy-950 text-slate-300 border-white/10'
                             }`}
                           >
-                            {u.role}
-                          </span>
+                            <option value="SUPER_ADMIN">SUPER_ADMIN (Full Website Control)</option>
+                            <option value="FACULTY">FACULTY (Activities & Achievements)</option>
+                            <option value="PRESIDENT">PRESIDENT (Team, Events, Applications)</option>
+                            <option value="MEMBER">MEMBER (Student Member)</option>
+                            <option value="VISITOR">VISITOR (Guest)</option>
+                          </select>
                         </td>
                         <td className="py-3.5 px-4">
                           <span
@@ -1534,7 +1942,7 @@ export const AdminDashboard: React.FC = () => {
                               u.isApprovedMember ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'
                             }`}
                           >
-                            {u.isApprovedMember ? 'Approved Member' : 'Visitor / Applicant'}
+                            {u.isApprovedMember ? 'Approved Member' : 'Regular User'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
@@ -1560,67 +1968,164 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 10: WEBSITE CONTENT (CMS) */}
+        {/* SECTION 10: WEBSITE CONTENT & PHOTOS (SUPERADMIN ONLY) */}
         {/* ========================================================================= */}
-        {activeTab === 'cms' && (
-          <div className="space-y-6">
+        {activeTab === 'cms' && isSuperAdmin && (
+          <div className="space-y-8">
             <div>
-              <h2 className="text-lg font-bold text-white">Website Content & Official Metadata</h2>
+              <h2 className="text-lg font-bold text-white">Website Content & Photo Control Center</h2>
               <p className="text-xs text-slate-400">
-                Manage hero announcements, official contacts, and club metadata
+                Change the official committee group photo, club logo, hero announcements, and contact information
               </p>
             </div>
 
+            {/* Photo Uploaders Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
-                <h3 className="font-bold text-white text-sm">Hero Tagline & Identity</h3>
-                <div>
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Provisional Headline</label>
-                  <input
-                    type="text"
-                    defaultValue="Where Ideas Meet Innovation."
-                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white"
+              {/* 1. Group Photo Management */}
+              <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-white text-sm">Official Committee Group Photograph</h3>
+                    <p className="text-[11px] text-slate-400">Displayed on Home Page and Team Page</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                    PUBLIC
+                  </span>
+                </div>
+
+                <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-navy-950 border border-white/10">
+                  <img
+                    src={branding.groupPhotoUrl}
+                    alt="Current Committee Group Photo"
+                    className="w-full h-full object-cover"
                   />
                 </div>
-                <div>
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Sub-headline Description</label>
-                  <textarea
-                    rows={3}
-                    defaultValue="Discover departmental activities, technical workshops, learning sessions, and the people who make ACES KBTCOE happen."
-                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white"
-                  />
+
+                <div className="space-y-2">
+                  <label className="text-[11px] text-slate-300 font-semibold block">
+                    Upload New Group Photo (JPEG/PNG/WebP):
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setGroupPhotoFile(e.target.files?.[0] || null)}
+                      className="flex-1 px-3 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-white/10 file:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUploadGroupPhoto}
+                      disabled={uploadingGroupPhoto || !groupPhotoFile}
+                      className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center gap-1.5"
+                    >
+                      <UploadCloud size={14} />
+                      <span>{uploadingGroupPhoto ? 'Uploading...' : 'Upload & Apply'}</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">
+                    Uploaded photos are automatically synchronized and delivered via Cloudinary CDN.
+                  </span>
                 </div>
-                <button
-                  onClick={() => alert('Content configuration saved to database.')}
-                  className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold"
-                >
-                  Save Identity Content
-                </button>
               </div>
 
-              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
-                <h3 className="font-bold text-white text-sm">Official Contact & Social Channels</h3>
+              {/* 2. Club Logo Management */}
+              <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-white text-sm">Official ACES Club Logo</h3>
+                    <p className="text-[11px] text-slate-400">Displayed in Navbar, Footer, and Header</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300">
+                    BRANDING
+                  </span>
+                </div>
+
+                <div className="h-44 rounded-2xl bg-navy-950 border border-white/10 flex items-center justify-center p-4">
+                  <img
+                    src={branding.logoUrl}
+                    alt="Current Club Logo"
+                    className="max-h-36 max-w-full object-contain"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] text-slate-300 font-semibold block">
+                    Upload New Club Logo (PNG/JPEG/WebP):
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                      className="flex-1 px-3 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-white/10 file:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUploadLogo}
+                      disabled={uploadingLogo || !logoFile}
+                      className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center gap-1.5"
+                    >
+                      <UploadCloud size={14} />
+                      <span>{uploadingLogo ? 'Uploading...' : 'Upload & Apply'}</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">
+                    Square aspect ratio recommended for optimal navbar appearance.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* General Content Form */}
+            <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+              <h3 className="font-bold text-white text-sm">Website Headlines & Campus Metadata</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Official Email</label>
+                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Hero Headline</label>
                   <input
                     type="text"
-                    defaultValue="aces.kbtcoe@gmail.com"
-                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white"
+                    value={branding.headline}
+                    onChange={(e) => setBranding({ ...branding, headline: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
                   />
                 </div>
                 <div>
+                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Official Contact Email</label>
+                  <input
+                    type="text"
+                    value={branding.contactEmail}
+                    onChange={(e) => setBranding({ ...branding, contactEmail: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Sub-headline Description</label>
+                  <textarea
+                    rows={2}
+                    value={branding.subtitle}
+                    onChange={(e) => setBranding({ ...branding, subtitle: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+                <div className="md:col-span-2">
                   <label className="text-[11px] text-slate-400 uppercase font-semibold">Campus Location</label>
                   <input
                     type="text"
-                    defaultValue="Department of Computer Engineering, NDMVP KBTCOE, Nashik - 422013"
-                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white"
+                    value={branding.campusLocation}
+                    onChange={(e) => setBranding({ ...branding, campusLocation: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
                   />
                 </div>
+              </div>
+
+              <div className="flex justify-end pt-3 border-t border-white/10">
                 <button
-                  onClick={() => alert('Contact metadata saved.')}
-                  className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold"
+                  type="button"
+                  onClick={handleSaveBranding}
+                  disabled={savingBranding}
+                  className="px-5 py-2.5 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-electric-blue/20"
                 >
-                  Save Contact Metadata
+                  {savingBranding ? 'Saving...' : 'Save All Branding Details'}
                 </button>
               </div>
             </div>
@@ -1630,7 +2135,7 @@ export const AdminDashboard: React.FC = () => {
         {/* ========================================================================= */}
         {/* SECTION 11: CONTACT MESSAGES */}
         {/* ========================================================================= */}
-        {activeTab === 'messages' && (
+        {activeTab === 'messages' && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-white">Student & Visitor Inquiries ({messages.length})</h2>
@@ -1680,9 +2185,9 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 12: SETTINGS */}
+        {/* SECTION 12: SETTINGS (SUPERADMIN ONLY) */}
         {/* ========================================================================= */}
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && isSuperAdmin && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-white">System Settings & Infrastructure Status</h2>
@@ -1809,7 +2314,7 @@ export const AdminDashboard: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g., Verified in SBI statement at 11:42 AM"
+                    placeholder="e.g., Verified in bank statement at 11:42 AM"
                     value={adminNote}
                     onChange={(e) => setAdminNote(e.target.value)}
                     className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
@@ -2017,14 +2522,14 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* MODAL: TEAM MEMBER ADD/EDIT */}
+        {/* MODAL: TEAM MEMBER ADD/EDIT (With Photo Upload) */}
         {/* ========================================================================= */}
         {isTeamModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <h3 className="text-base font-bold text-white">
-                  {editingMemberId ? 'Edit Team Member' : 'Add Committee Member'}
+                  {editingMemberId ? 'Edit Team Member & Change Photo' : 'Add Committee Member'}
                 </h3>
                 <button
                   onClick={() => setIsTeamModalOpen(false)}
@@ -2032,6 +2537,36 @@ export const AdminDashboard: React.FC = () => {
                 >
                   <X size={18} />
                 </button>
+              </div>
+
+              {/* Photo Upload Card */}
+              <div className="p-4 rounded-2xl bg-navy-950 border border-white/10 flex items-center gap-4">
+                <img
+                  src={teamForm.photoUrl}
+                  alt={teamForm.name || 'Member Preview'}
+                  className="w-16 h-16 rounded-full object-cover border-2 border-electric-cyan shrink-0"
+                />
+                <div className="space-y-1.5 flex-1">
+                  <label className="text-[11px] font-bold uppercase text-slate-300 block">
+                    Upload & Change Member Photo:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setMemberPhotoFile(e.target.files?.[0] || null)}
+                      className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:bg-white/10 file:text-white w-full"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUploadMemberPhoto}
+                      disabled={uploadingMemberPhoto || !memberPhotoFile}
+                      className="px-3 py-1 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-40 shrink-0"
+                    >
+                      {uploadingMemberPhoto ? 'Uploading...' : 'Upload'}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <form onSubmit={handleSaveTeamMember} className="space-y-4 text-xs">
@@ -2144,6 +2679,105 @@ export const AdminDashboard: React.FC = () => {
                     className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
                   >
                     Save Member
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: ACTIVITIES & ACHIEVEMENTS ADD/EDIT */}
+        {/* ========================================================================= */}
+        {isActivityModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-base font-bold text-white">
+                  {editingActivityId ? 'Edit Departmental Record' : 'Add Departmental Activity or Achievement'}
+                </h3>
+                <button
+                  onClick={() => setIsActivityModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveActivity} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Winner at State-Level Hackathon 2026 / Expert Session on Cloud"
+                    value={activityForm.title}
+                    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Type *</label>
+                    <select
+                      value={activityForm.type}
+                      onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    >
+                      <option value="ACTIVITY">Departmental Activity / Workshop</option>
+                      <option value="ACHIEVEMENT">Student / Faculty Achievement</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={activityForm.date}
+                      onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Description *</label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Provide details about the session, competition, organizing faculty, or participating students..."
+                    value={activityForm.description}
+                    onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Tags (Comma-separated)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. AI/ML, Cloud Computing, Hackathon, Research"
+                    value={activityForm.tags}
+                    onChange={(e) => setActivityForm({ ...activityForm, tags: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setIsActivityModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                  >
+                    Save Record
                   </button>
                 </div>
               </form>

@@ -7,7 +7,7 @@ import {
   getPaymentScreenshot,
   reviewPaymentProof,
 } from '../controllers/paymentController.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireEventAdmin } from '../middleware/auth.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -30,8 +30,8 @@ router.get('/my', authenticate, getMyPayments);
 // Secure screenshot viewer (student owner or admin)
 router.get('/screenshot/:id', authenticate, getPaymentScreenshot);
 
-// Admin-only verification routes
-router.get('/admin/all', authenticate, requireAdmin, getAllPaymentsAdmin);
-router.patch('/admin/:id/verify', authenticate, requireAdmin, reviewPaymentProof);
+// Event Admin verification routes (SUPER_ADMIN, ADMIN, PRESIDENT)
+router.get('/admin/all', authenticate, requireEventAdmin, getAllPaymentsAdmin);
+router.patch('/admin/:id/verify', authenticate, requireEventAdmin, reviewPaymentProof);
 
 export default router;
