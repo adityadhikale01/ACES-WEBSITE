@@ -4,13 +4,15 @@
   "private": true,
   "description": "ACES KBTCOE Departmental Student Club Official Full-Stack Website",
   "scripts": {
-    "install:all": "npm --prefix client install && npm --prefix server install",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "seed": "npm --prefix backend run seed",
+    "test": "node backend/test-api.js",
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
     "build:client": "npm --prefix client run build",
     "build:server": "npm --prefix server run build",
-    "build": "npm run build:client && npm run build:server",
-    "test": "npm --prefix server run test",
-    "seed": "npm --prefix server run seed"
+    "build": "npm run build:frontend"
   }
 }

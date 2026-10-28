@@ -1,0 +1,36 @@
+{
+  "name": "aces-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.1.1",
+    "@mui/material": "^9.1.2",
+    "aces-kbtcoe-website": "file:..",
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.4.7",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.21.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-icons": "^5.4.0",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "^7.1.5",
+    "tailwind-merge": "^3.0.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.1.0"
+  }
+}
