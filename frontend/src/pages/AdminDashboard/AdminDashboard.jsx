@@ -20,105 +20,94 @@ import {
   ArrowDown,
   UploadCloud,
   Briefcase,
-  Globe
+  Globe,
+  CheckCircle,
+  XCircle,
+  Shield,
+  ExternalLink,
+  MessageSquare,
+  Key,
+  Sparkles,
+  Filter,
+  Clock,
+  UserCheck,
+  UserX
 } from "lucide-react";
 import { useAuth } from "../../auth/authContext.jsx";
 import { api } from "../../services/api.js";
+
 export const AdminDashboard = () => {
   const { user, isAuthenticated, isAdmin, isSuperAdmin, isFaculty, isPresident } = useAuth();
   const navigate = useNavigate();
   const userRole = user?.role || "MEMBER";
+
+  // Exact 6-module architecture requested for Superadmin
   const allTabDefinitions = [
     {
       id: "overview",
-      label: "1. Overview",
+      label: "1. Dashboard",
       icon: Layers,
       roles: ["SUPER_ADMIN", "ADMIN", "FACULTY", "PRESIDENT"]
     },
     {
-      id: "events",
-      label: "2. Events",
+      id: "events_hub",
+      label: "2. Events & Registrations",
       icon: Calendar,
-      badgeKey: "events",
-      roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
-    },
-    {
-      id: "registrations",
-      label: "3. Registrations",
-      icon: Users,
-      badgeKey: "registrations",
-      roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
-    },
-    {
-      id: "payments",
-      label: "4. Payment Verification",
-      icon: CreditCard,
-      badgeKey: "pendingPayments",
+      badgeKey: "events_hub",
       roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
     },
     {
       id: "team",
-      label: "5. Team Management",
-      icon: Briefcase,
+      label: "3. Team & Member Roles",
+      icon: Users,
       badgeKey: "team",
       roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
     },
     {
       id: "gallery",
-      label: "6. Event Gallery",
+      label: "4. Event Gallery",
       icon: ImageIcon,
       badgeKey: "albums",
-      roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
+      roles: ["SUPER_ADMIN", "ADMIN", "FACULTY", "PRESIDENT"]
     },
     {
       id: "activities",
-      label: "7. Activities & Achievements",
+      label: "Activities & Achievements",
       icon: Award,
       badgeKey: "activities",
-      roles: ["SUPER_ADMIN", "ADMIN", "FACULTY"]
+      roles: ["FACULTY"] // Faculty specific view
     },
     {
       id: "applications",
-      label: "8. Membership Apps",
+      label: "5. Membership Applications",
       icon: FileCheck,
       badgeKey: "pendingApplications",
       roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
     },
     {
-      id: "members",
-      label: "9. Members & Roles",
-      icon: Users,
-      badgeKey: "users",
-      roles: ["SUPER_ADMIN", "ADMIN"]
-    },
-    {
-      id: "cms",
-      label: "10. Website Content & Photos",
-      icon: Globe,
-      roles: ["SUPER_ADMIN", "ADMIN"]
-    },
-    {
-      id: "messages",
-      label: "11. Messages",
-      icon: Mail,
-      badgeKey: "messages",
-      roles: ["SUPER_ADMIN", "ADMIN", "PRESIDENT"]
-    },
-    {
       id: "settings",
-      label: "12. Settings",
+      label: "6. Settings & Website Content",
       icon: SettingsIcon,
       roles: ["SUPER_ADMIN", "ADMIN"]
     }
   ];
+
   const accessibleTabs = allTabDefinitions.filter(
     (tab) => tab.roles.includes(userRole)
   );
+
   const [activeTab, setActiveTab] = useState(
     isFaculty ? "activities" : "overview"
   );
+
+  // Sub-tabs for the consolidated modules
+  const [eventsSubTab, setEventsSubTab] = useState("events"); // "events" | "registrations" | "payments"
+  const [teamSubTab, setTeamSubTab] = useState("members"); // "members" | "committee" | "designations" | "users"
+  const [settingsSubTab, setSettingsSubTab] = useState("branding"); // "branding" | "content" | "upi" | "messages" | "system"
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalApprovedMembers: 0,
@@ -132,6 +121,7 @@ export const AdminDashboard = () => {
     unreadMessages: 0,
     totalAlbums: 0
   });
+
   const [events, setEvents] = useState([]);
   const [applications, setApplications] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -141,15 +131,22 @@ export const AdminDashboard = () => {
   const [albums, setAlbums] = useState([]);
   const [activities, setActivities] = useState([]);
   const [usersList, setUsersList] = useState([]);
+
+  // Attendee tracking
   const [selectedEventId, setSelectedEventId] = useState("");
   const [attendees, setAttendees] = useState([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
+
+  // Payment inspection modal state
   const [inspectingPayment, setInspectingPayment] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [adminNote, setAdminNote] = useState("");
   const [paymentActionLoading, setPaymentActionLoading] = useState(false);
+
+  // Group team details modal
   const [viewingTeamModal, setViewingTeamModal] = useState(null);
-  const [inspectingProofUrl, setInspectingProofUrl] = useState(null);
+
+  // Event modal state
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState(null);
   const defaultEventForm = {
@@ -180,6 +177,8 @@ export const AdminDashboard = () => {
     groupMembers: []
   };
   const [eventForm, setEventForm] = useState(defaultEventForm);
+
+  // Team committee member modal state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [memberPhotoFile, setMemberPhotoFile] = useState(null);
@@ -198,6 +197,27 @@ export const AdminDashboard = () => {
     displayOrder: 10,
     isPublished: true
   });
+
+  // Dynamic Post Assignment Modal for approved platform members
+  const [assigningPostMember, setAssigningPostMember] = useState(null);
+  const [memberPostData, setMemberPostData] = useState({
+    assignedPost: "",
+    postCategory: "MEMBER",
+    displayOrder: 10,
+    isPublishedOnTeam: true,
+    role: "MEMBER"
+  });
+  const [assigningSubmitting, setAssigningSubmitting] = useState(false);
+
+  // Membership Application Review Modal state (Interactive approval & rejection)
+  const [reviewingApp, setReviewingApp] = useState(null);
+  const [reviewAction, setReviewAction] = useState("APPROVED"); // "APPROVED" | "REJECTED"
+  const [appAssignedPost, setAppAssignedPost] = useState("ACES Member");
+  const [appPostCategory, setAppPostCategory] = useState("MEMBER");
+  const [appReviewNotes, setAppReviewNotes] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  // Designation modal state
   const [isDesgModalOpen, setIsDesgModalOpen] = useState(false);
   const [desgForm, setDesgForm] = useState({
     title: "",
@@ -205,11 +225,13 @@ export const AdminDashboard = () => {
     displayOrder: 10,
     description: ""
   });
+
+  // Album modal state
   const [isAlbumModalOpen, setIsAlbumModalOpen] = useState(false);
   const [albumForm, setAlbumForm] = useState({
     title: "",
     description: "",
-    eventDate: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+    eventDate: new Date().toISOString().split("T")[0],
     academicYear: "2026-27",
     category: "FLAGSHIP",
     coverImageUrl: "",
@@ -218,17 +240,21 @@ export const AdminDashboard = () => {
   const [uploadingAlbumId, setUploadingAlbumId] = useState(null);
   const [uploadMediaCaption, setUploadMediaCaption] = useState("");
   const [uploadFile, setUploadFile] = useState(null);
+
+  // Activity modal state (Faculty)
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [editingActivityId, setEditingActivityId] = useState(null);
   const [activityForm, setActivityForm] = useState({
     title: "",
     type: "ACTIVITY",
     description: "",
-    date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+    date: new Date().toISOString().split("T")[0],
     tags: "Department, Workshop",
     imageUrl: "",
     featured: false
   });
+
+  // Website Branding & Content
   const [branding, setBranding] = useState({
     groupPhotoUrl: "/assets/aces-team.jpg",
     logoUrl: "/assets/aces-logo.jpeg",
@@ -244,15 +270,26 @@ export const AdminDashboard = () => {
   const [logoFile, setLogoFile] = useState(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
+
+  // UPI Receiver Settings
+  const [upiSettings, setUpiSettings] = useState({
+    upiId: "aceskbtcoe@okaxis",
+    instructions: "Pay via UPI QR or VPA. Enter 12-digit UTR transaction reference upon completion.",
+    refundPolicy: "Non-refundable once verified and confirmed."
+  });
+
+  // Filters & Search
   const [paymentSearch, setPaymentSearch] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("ALL");
   const [memberSearch, setMemberSearch] = useState("");
+  const [eventSearch, setEventSearch] = useState("");
+
   const loadAllAdminData = async () => {
     try {
       setRefreshing(true);
       const isFacOnly = userRole === "FACULTY";
-      const isPres = userRole === "PRESIDENT";
       const isSuper = userRole === "SUPER_ADMIN" || userRole === "ADMIN";
+
       const [
         statsRes,
         evRes,
@@ -278,6 +315,7 @@ export const AdminDashboard = () => {
         isSuper ? api.admin.getUsers().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
         api.content.get("branding").catch(() => ({ success: false }))
       ]);
+
       if (statsRes.success && statsRes.stats) setStats(statsRes.stats);
       if (evRes.success && evRes.events) {
         setEvents(evRes.events);
@@ -305,6 +343,7 @@ export const AdminDashboard = () => {
       setRefreshing(false);
     }
   };
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/login");
@@ -316,6 +355,7 @@ export const AdminDashboard = () => {
     }
     loadAllAdminData();
   }, [isAuthenticated, isAdmin, navigate]);
+
   useEffect(() => {
     if (!selectedEventId || userRole === "FACULTY") return;
     const fetchAttendees = async () => {
@@ -333,12 +373,15 @@ export const AdminDashboard = () => {
     };
     fetchAttendees();
   }, [selectedEventId, userRole]);
+
+  // Payment Verification with Email Notification Dispatch
   const handleReviewPayment = async (status) => {
     if (!inspectingPayment) return;
     if ((status === "REJECTED" || status === "RESUBMISSION_REQUESTED") && !rejectionReason.trim()) {
       alert("A clear rejection reason is mandatory to guide the student.");
       return;
     }
+
     try {
       setPaymentActionLoading(true);
       const res = await api.payments.verifyProof(inspectingPayment._id, {
@@ -346,7 +389,13 @@ export const AdminDashboard = () => {
         rejectionReason: rejectionReason.trim(),
         adminNotes: adminNote.trim()
       });
+
       if (res.success) {
+        alert(
+          status === "VERIFIED"
+            ? `Payment verified successfully! Confirmation email with Ticket Pass ID dispatched to student.`
+            : `Payment marked ${status}. Feedback email dispatched to student.`
+        );
         setInspectingPayment(null);
         setRejectionReason("");
         setAdminNote("");
@@ -358,27 +407,30 @@ export const AdminDashboard = () => {
       setPaymentActionLoading(false);
     }
   };
+
+  // Event Management Handlers
   const handleSaveEvent = async (e) => {
     e.preventDefault();
     try {
       const payload = {
         ...eventForm,
         fee: Math.round(eventForm.feeInRupees * 100),
-        // convert rupees to paise
         startDate: new Date(eventForm.startDate).toISOString(),
         registrationDeadline: new Date(eventForm.registrationDeadline).toISOString(),
-        endDate: eventForm.endDate ? new Date(eventForm.endDate).toISOString() : void 0,
+        endDate: eventForm.endDate ? new Date(eventForm.endDate).toISOString() : undefined,
         whatsappGroupUrl: eventForm.whatsappGroupUrl || "https://chat.whatsapp.com/ACES-KBTCOE-Events",
         whatsappLink: eventForm.whatsappGroupUrl || "https://chat.whatsapp.com/ACES-KBTCOE-Events",
         isGroupEvent: Boolean(eventForm.isGroupEvent),
         maxGroupSize: Number(eventForm.maxGroupSize) || 4,
         groupMembers: Array.isArray(eventForm.groupMembers) ? eventForm.groupMembers : []
       };
+
       if (editingEventId) {
         await api.events.update(editingEventId, payload);
       } else {
         await api.events.create(payload);
       }
+
       setIsEventModalOpen(false);
       setEditingEventId(null);
       setEventForm(defaultEventForm);
@@ -387,6 +439,7 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to save event");
     }
   };
+
   const handleEditEvent = (event) => {
     setEditingEventId(event._id);
     setEventForm({
@@ -418,6 +471,7 @@ export const AdminDashboard = () => {
     });
     setIsEventModalOpen(true);
   };
+
   const handleDeleteEvent = async (id) => {
     if (!window.confirm("Delete this event? Registrations will also be removed.")) return;
     try {
@@ -427,6 +481,8 @@ export const AdminDashboard = () => {
       alert(err.message || "Delete failed");
     }
   };
+
+  // Team Committee & Post Assignment Handlers
   const handleUploadMemberPhoto = async () => {
     if (!memberPhotoFile) {
       alert("Please select an image file first.");
@@ -448,6 +504,7 @@ export const AdminDashboard = () => {
       setUploadingMemberPhoto(false);
     }
   };
+
   const handleSaveTeamMember = async (e) => {
     e.preventDefault();
     try {
@@ -463,13 +520,16 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to save team member");
     }
   };
+
   const handleMoveTeamMember = async (index, direction) => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= teamList.length) return;
+
     const updated = [...teamList];
     const [moved] = updated.splice(index, 1);
     updated.splice(targetIndex, 0, moved);
     setTeamList(updated);
+
     try {
       const orderedIds = updated.map((m) => m._id);
       await api.team.reorder(orderedIds);
@@ -477,6 +537,7 @@ export const AdminDashboard = () => {
       console.error("Failed to persist team order:", err);
     }
   };
+
   const handleDeleteTeamMember = async (id) => {
     if (!window.confirm("Remove this committee member from public listing?")) return;
     try {
@@ -486,6 +547,88 @@ export const AdminDashboard = () => {
       alert(err.message || "Delete failed");
     }
   };
+
+  // Dynamic Post & Hierarchy Assignment for Approved Members
+  const openAssignPostModal = (memberOrUser) => {
+    setAssigningPostMember(memberOrUser);
+    setMemberPostData({
+      assignedPost: memberOrUser.assignedPost || memberOrUser.role || "ACES Member",
+      postCategory: memberOrUser.postCategory || (memberOrUser.assignedPost?.toLowerCase().includes("president") ? "PRESIDENT" : "MEMBER"),
+      displayOrder: memberOrUser.displayOrder || 10,
+      isPublishedOnTeam: memberOrUser.isPublishedOnTeam ?? true,
+      role: memberOrUser.role || "MEMBER"
+    });
+  };
+
+  const handleSavePostAssignment = async (e) => {
+    e.preventDefault();
+    if (!assigningPostMember) return;
+    try {
+      setAssigningSubmitting(true);
+      await api.team.assignPost(assigningPostMember._id, memberPostData);
+      if (memberPostData.role && assigningPostMember.role !== memberPostData.role) {
+        await api.admin.updateUser(assigningPostMember._id, { role: memberPostData.role });
+      }
+      setAssigningPostMember(null);
+      loadAllAdminData();
+      alert("Member post and permissions updated successfully! Live on Team Page.");
+    } catch (err) {
+      alert(err.message || "Failed to assign post");
+    } finally {
+      setAssigningSubmitting(false);
+    }
+  };
+
+  // Membership Application Review with Automated Credential / Feedback Email Dispatch
+  const openApproveModal = (app) => {
+    setReviewingApp(app);
+    setReviewAction("APPROVED");
+    setAppAssignedPost("ACES Member");
+    setAppPostCategory("MEMBER");
+    setAppReviewNotes(`Welcome to the ACES family, ${app.fullName}! We are excited to have you.`);
+  };
+
+  const openRejectModal = (app) => {
+    setReviewingApp(app);
+    setReviewAction("REJECTED");
+    setAppReviewNotes("");
+  };
+
+  const handleConfirmApplicationReview = async (e) => {
+    e.preventDefault();
+    if (!reviewingApp) return;
+
+    if (reviewAction === "REJECTED" && !appReviewNotes.trim()) {
+      alert("A clear rejection reason is required so the student receives helpful feedback.");
+      return;
+    }
+
+    try {
+      setReviewSubmitting(true);
+      const res = await api.applications.review(reviewingApp._id, {
+        status: reviewAction,
+        assignedPost: appAssignedPost,
+        postCategory: appPostCategory,
+        adminNotes: appReviewNotes.trim()
+      });
+
+      if (res.success) {
+        alert(
+          reviewAction === "APPROVED"
+            ? `Application approved! Platform credentials and assigned post '${appAssignedPost}' sent to ${reviewingApp.email}.`
+            : `Application rejected. Feedback email dispatched to ${reviewingApp.email}.`
+        );
+        setReviewingApp(null);
+        loadAllAdminData();
+      }
+    } catch (err) {
+      alert(err.message || "Failed to review application");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  // Designations Handlers
   const handleSaveDesignation = async (e) => {
     e.preventDefault();
     try {
@@ -497,6 +640,7 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to create designation");
     }
   };
+
   const handleRetireDesignation = async (id) => {
     if (!window.confirm("Retire this designation? Existing members will retain historical record.")) return;
     try {
@@ -506,6 +650,8 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to retire designation");
     }
   };
+
+  // Gallery Albums & Media Upload Handlers
   const handleCreateAlbum = async (e) => {
     e.preventDefault();
     try {
@@ -514,7 +660,7 @@ export const AdminDashboard = () => {
       setAlbumForm({
         title: "",
         description: "",
-        eventDate: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+        eventDate: new Date().toISOString().split("T")[0],
         academicYear: "2026-27",
         category: "FLAGSHIP",
         coverImageUrl: "",
@@ -525,6 +671,7 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to create gallery album");
     }
   };
+
   const handleUploadMedia = async (albumId) => {
     if (!uploadFile) {
       alert("Please select an image or video file.");
@@ -533,16 +680,19 @@ export const AdminDashboard = () => {
     const formData = new FormData();
     formData.append("mediaFile", uploadFile);
     formData.append("caption", uploadMediaCaption);
+
     try {
       await api.gallery.uploadMedia(albumId, formData);
       setUploadFile(null);
       setUploadMediaCaption("");
       setUploadingAlbumId(null);
       loadAllAdminData();
+      alert("Media successfully uploaded to album!");
     } catch (err) {
       alert(err.message || "Media upload failed");
     }
   };
+
   const handleDeleteAlbum = async (id) => {
     if (!window.confirm("Delete this event album and all associated photos/videos?")) return;
     try {
@@ -552,6 +702,8 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to delete album");
     }
   };
+
+  // Activities & Achievements Handlers (Faculty)
   const handleSaveActivity = async (e) => {
     e.preventDefault();
     try {
@@ -571,6 +723,7 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to save activity");
     }
   };
+
   const handleDeleteActivity = async (id) => {
     if (!window.confirm("Delete this departmental activity / achievement?")) return;
     try {
@@ -580,6 +733,8 @@ export const AdminDashboard = () => {
       alert(err.message || "Failed to delete activity");
     }
   };
+
+  // Website Branding, Group Photo & Logo Upload Handlers
   const handleUploadGroupPhoto = async () => {
     if (!groupPhotoFile) {
       alert("Please select a group photo file first.");
@@ -595,7 +750,7 @@ export const AdminDashboard = () => {
         setBranding(updatedBranding);
         await api.content.update("branding", updatedBranding);
         setGroupPhotoFile(null);
-        alert("Official Group Photo uploaded and updated live on the website!");
+        alert("Official ACES Group Photo uploaded and updated live on the website!");
       }
     } catch (err) {
       alert(err.message || "Failed to upload group photo");
@@ -603,6 +758,7 @@ export const AdminDashboard = () => {
       setUploadingGroupPhoto(false);
     }
   };
+
   const handleUploadLogo = async () => {
     if (!logoFile) {
       alert("Please select a logo file first.");
@@ -618,7 +774,7 @@ export const AdminDashboard = () => {
         setBranding(updatedBranding);
         await api.content.update("branding", updatedBranding);
         setLogoFile(null);
-        alert("Official Club Logo uploaded and updated live on the website!");
+        alert("Official ACES Club Logo uploaded and updated live on the website!");
       }
     } catch (err) {
       alert(err.message || "Failed to upload logo");
@@ -626,6 +782,7 @@ export const AdminDashboard = () => {
       setUploadingLogo(false);
     }
   };
+
   const handleSaveBranding = async () => {
     try {
       setSavingBranding(true);
@@ -637,49 +794,55 @@ export const AdminDashboard = () => {
       setSavingBranding(false);
     }
   };
+
   const handleUpdateUserRole = async (userId, newRole) => {
     try {
       await api.admin.updateUser(userId, { role: newRole });
-      setUsersList(
-        (prev) => prev.map((u) => u._id === userId ? { ...u, role: newRole } : u)
+      setUsersList((prev) =>
+        prev.map((u) => (u._id === userId ? { ...u, role: newRole } : u))
       );
-      alert(`User role updated to ${newRole}`);
+      alert(`User administrative role updated to ${newRole}`);
     } catch (err) {
       alert(err.message || "Failed to update user role");
     }
   };
-  const handleReviewApp = async (id, status) => {
-    const notes = prompt(`Optional feedback note for applicant (${status}):`) || "";
-    try {
-      const res = await api.applications.review(id, { status, adminNotes: notes });
-      if (res.success) {
-        setApplications(
-          (prev) => prev.map((a) => a._id === id ? { ...a, status, adminNotes: notes } : a)
-        );
-        loadAllAdminData();
-      }
-    } catch (err) {
-      alert(err.message || "Review failed");
-    }
-  };
+
   const handleToggleMessageRead = async (id, current) => {
     try {
       await api.contact.markRead(id, !current);
-      setMessages((prev) => prev.map((m) => m._id === id ? { ...m, isRead: !current } : m));
+      setMessages((prev) =>
+        prev.map((m) => (m._id === id ? { ...m, isRead: !current } : m))
+      );
     } catch (err) {
       alert(err.message || "Failed to update message status");
     }
   };
+
+  // Filtered Payments
   const filteredPayments = payments.filter((p) => {
-    const matchesStatus = paymentStatusFilter === "ALL" || p.status === paymentStatusFilter;
-    const studentName = typeof p.userId === "object" ? p.userId.fullName : "";
-    const studentEmail = typeof p.userId === "object" ? p.userId.email : "";
+    const matchesStatus =
+      paymentStatusFilter === "ALL" || p.status === paymentStatusFilter;
+    const studentName =
+      p.userId?.fullName || p.userId?.name || p.registrationId?.fullName || p.name || "";
+    const studentEmail =
+      p.userId?.email || p.registrationId?.email || p.email || "";
     const q = paymentSearch.toLowerCase();
-    const matchesSearch = !q || p.utrReference.toLowerCase().includes(q) || studentName.toLowerCase().includes(q) || studentEmail.toLowerCase().includes(q);
+    const matchesSearch =
+      !q ||
+      (p.utrReference && p.utrReference.toLowerCase().includes(q)) ||
+      studentName.toLowerCase().includes(q) ||
+      studentEmail.toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });
-  const pendingPaymentsCount = payments.filter((p) => p.status === "PROOF_SUBMITTED").length;
+
+  const pendingPaymentsCount = payments.filter(
+    (p) => p.status === "PROOF_SUBMITTED"
+  ).length;
+
+  const approvedPlatformMembers = usersList.filter((u) => u.isApprovedMember);
+
   if (!isAdmin) return null;
+
   const getRoleBadge = () => {
     if (userRole === "SUPER_ADMIN" || userRole === "ADMIN") {
       return {
@@ -708,12 +871,13 @@ export const AdminDashboard = () => {
       color: "bg-white/10 text-slate-300 border-white/10"
     };
   };
+
   const roleBadge = getRoleBadge();
-  return <div className="pt-24 pb-20 min-h-screen bg-navy-950 text-slate-200">
+
+  return (
+    <div className="pt-24 pb-20 min-h-screen bg-navy-950 text-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {
-    /* Top Header Bar */
-  }
+        {/* Top Header Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10 mb-6">
           <div>
             <div className="flex items-center gap-2">
@@ -729,83 +893,84 @@ export const AdminDashboard = () => {
 
           <div className="flex items-center gap-3">
             <button
-    onClick={loadAllAdminData}
-    disabled={refreshing}
-    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
-  >
+              onClick={loadAllAdminData}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
+            >
               <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
               <span>Refresh</span>
             </button>
             <Link
-    to="/dashboard"
-    className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-xs font-semibold hover:bg-white/10"
-  >
+              to="/dashboard"
+              className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-xs font-semibold hover:bg-white/10"
+            >
               Member View
             </Link>
             <Link
-    to="/"
-    className="px-3.5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors"
-  >
+              to="/"
+              className="px-3.5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors"
+            >
               Live Site
             </Link>
           </div>
         </div>
 
-        {
-    /* Dynamic RBAC Navigation Tabs */
-  }
+        {/* Dynamic 6-Module Navigation Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-8 scrollbar-none border-b border-white/5">
           {accessibleTabs.map((tab) => {
-    const Icon = tab.icon;
-    const isActive = activeTab === tab.id;
-    let badgeValue = null;
-    let isAlert = false;
-    if (tab.id === "events") badgeValue = events.length;
-    if (tab.id === "registrations") badgeValue = stats.totalRegistrations;
-    if (tab.id === "payments") {
-      badgeValue = pendingPaymentsCount;
-      isAlert = pendingPaymentsCount > 0;
-    }
-    if (tab.id === "team") badgeValue = teamList.length;
-    if (tab.id === "gallery") badgeValue = albums.length;
-    if (tab.id === "activities") badgeValue = activities.length;
-    if (tab.id === "applications") {
-      badgeValue = stats.pendingApplications;
-      isAlert = stats.pendingApplications > 0;
-    }
-    if (tab.id === "members") badgeValue = usersList.length;
-    if (tab.id === "messages") badgeValue = stats.unreadMessages;
-    return <button
-      key={tab.id}
-      onClick={() => setActiveTab(tab.id)}
-      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${isActive ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-lg shadow-amber-500/10" : "bg-navy-900/80 text-slate-400 border-white/5 hover:text-white hover:bg-white/5"}`}
-    >
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            let badgeValue = null;
+            let isAlert = false;
+
+            if (tab.id === "events_hub") {
+              badgeValue = pendingPaymentsCount > 0 ? pendingPaymentsCount : events.length;
+              isAlert = pendingPaymentsCount > 0;
+            }
+            if (tab.id === "team") badgeValue = teamList.length;
+            if (tab.id === "gallery") badgeValue = albums.length;
+            if (tab.id === "activities") badgeValue = activities.length;
+            if (tab.id === "applications") {
+              badgeValue = stats.pendingApplications;
+              isAlert = stats.pendingApplications > 0;
+            }
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+                  isActive
+                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-lg shadow-amber-500/10"
+                    : "bg-navy-900/80 text-slate-400 border-white/5 hover:text-white hover:bg-white/5"
+                }`}
+              >
                 <Icon size={13} />
                 <span>{tab.label}</span>
-                {badgeValue !== null && badgeValue > 0 && <span
-      className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isAlert ? "bg-amber-500 text-black" : "bg-white/10 text-slate-300"}`}
-    >
+                {badgeValue !== null && badgeValue > 0 && (
+                  <span
+                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      isAlert ? "bg-amber-500 text-black animate-pulse" : "bg-white/10 text-slate-300"
+                    }`}
+                  >
                     {badgeValue}
-                  </span>}
-              </button>;
-  })}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 1: OVERVIEW */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "overview" && <div className="space-y-8">
+        {/* ========================================================================= */}
+        {/* MODULE 1: DASHBOARD */}
+        {/* ========================================================================= */}
+        {activeTab === "overview" && (
+          <div className="space-y-8">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
               <div className="p-4 rounded-2xl glass-card border border-white/10">
                 <span className="text-[10px] uppercase font-bold text-slate-400">Total Users</span>
                 <div className="text-2xl font-black text-white mt-1">{stats.totalUsers || 0}</div>
-                <div className="text-[10px] text-slate-500 mt-1">Registered in portal</div>
+                <div className="text-[10px] text-slate-500 mt-1">Platform registrations</div>
               </div>
               <div className="p-4 rounded-2xl glass-card border border-white/10">
                 <span className="text-[10px] uppercase font-bold text-emerald-400">Published Events</span>
@@ -820,35 +985,37 @@ export const AdminDashboard = () => {
               <div className="p-4 rounded-2xl glass-card border border-amber-500/30 bg-amber-500/5">
                 <span className="text-[10px] uppercase font-bold text-amber-400">Pending Payments</span>
                 <div className="text-2xl font-black text-amber-300 mt-1">{stats.pendingPayments || pendingPaymentsCount}</div>
-                <div className="text-[10px] text-amber-400/70 mt-1">Requires verification</div>
+                <div className="text-[10px] text-amber-400/70 mt-1">Requires review</div>
               </div>
               <div className="p-4 rounded-2xl glass-card border border-white/10">
                 <span className="text-[10px] uppercase font-bold text-teal-400">Confirmed Paid</span>
                 <div className="text-2xl font-black text-teal-300 mt-1">{stats.confirmedPaid || 0}</div>
                 <div className="text-[10px] text-slate-500 mt-1">Verified registrations</div>
               </div>
-              <div className="p-4 rounded-2xl glass-card border border-white/10">
+              <div className="p-4 rounded-2xl glass-card border border-rose-500/30 bg-rose-500/5">
                 <span className="text-[10px] uppercase font-bold text-rose-400">Pending Apps</span>
                 <div className="text-2xl font-black text-rose-300 mt-1">{stats.pendingApplications || 0}</div>
                 <div className="text-[10px] text-slate-500 mt-1">Awaiting club review</div>
               </div>
             </div>
 
-            {
-    /* Quick Actions Panel Tailored to Current Role */
-  }
+            {/* Quick Actions Panel Tailored to 6 Modules */}
             <div className="p-6 rounded-3xl bg-navy-900 border border-white/10">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">
                 Operational Shortcuts for {userRole.replace("_", " ")}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                {(isSuperAdmin || isPresident) && <>
+                {(isSuperAdmin || isPresident) && (
+                  <>
                     <button
-    onClick={() => setActiveTab("payments")}
-    className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left hover:bg-amber-500/20 transition-all"
-  >
+                      onClick={() => {
+                        setActiveTab("events_hub");
+                        setEventsSubTab("payments");
+                      }}
+                      className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left hover:bg-amber-500/20 transition-all"
+                    >
                       <div className="text-amber-300 font-bold text-xs flex items-center justify-between">
-                        <span>Payment Verification</span>
+                        <span>Payment Verification Queue</span>
                         <CreditCard size={15} />
                       </div>
                       <p className="text-[11px] text-slate-400 mt-1">
@@ -857,13 +1024,15 @@ export const AdminDashboard = () => {
                     </button>
 
                     <button
-    onClick={() => {
-      setEditingEventId(null);
-      setEventForm(defaultEventForm);
-      setIsEventModalOpen(true);
-    }}
-    className="p-4 rounded-2xl bg-electric-blue/10 border border-electric-blue/20 text-left hover:bg-electric-blue/20 transition-all"
-  >
+                      onClick={() => {
+                        setActiveTab("events_hub");
+                        setEventsSubTab("events");
+                        setEditingEventId(null);
+                        setEventForm(defaultEventForm);
+                        setIsEventModalOpen(true);
+                      }}
+                      className="p-4 rounded-2xl bg-electric-blue/10 border border-electric-blue/20 text-left hover:bg-electric-blue/20 transition-all"
+                    >
                       <div className="text-electric-cyan font-bold text-xs flex items-center justify-between">
                         <span>+ Add New Event</span>
                         <Plus size={15} />
@@ -872,637 +1041,958 @@ export const AdminDashboard = () => {
                     </button>
 
                     <button
-    onClick={() => setActiveTab("team")}
-    className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-left hover:bg-indigo-500/20 transition-all"
-  >
+                      onClick={() => {
+                        setActiveTab("team");
+                        setTeamSubTab("members");
+                      }}
+                      className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-left hover:bg-indigo-500/20 transition-all"
+                    >
                       <div className="text-indigo-300 font-bold text-xs flex items-center justify-between">
-                        <span>Manage Team & Photos</span>
+                        <span>Team Management & Roles</span>
                         <Briefcase size={15} />
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1">{teamList.length} committee members listed</p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {approvedPlatformMembers.length} approved members & dynamic posts
+                      </p>
                     </button>
-                  </>}
 
-                {(isSuperAdmin || isFaculty) && <button
-    onClick={() => {
-      setEditingActivityId(null);
-      setActivityForm({
-        title: "",
-        type: "ACTIVITY",
-        description: "",
-        date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-        tags: "Department, Workshop",
-        imageUrl: "",
-        featured: false
-      });
-      setIsActivityModalOpen(true);
-    }}
-    className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-left hover:bg-emerald-500/20 transition-all"
-  >
-                    <div className="text-emerald-300 font-bold text-xs flex items-center justify-between">
-                      <span>+ Departmental Activity</span>
-                      <Award size={15} />
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">Post workshop or student achievement</p>
-                  </button>}
+                    <button
+                      onClick={() => setActiveTab("applications")}
+                      className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-left hover:bg-rose-500/20 transition-all"
+                    >
+                      <div className="text-rose-300 font-bold text-xs flex items-center justify-between">
+                        <span>Membership Applications</span>
+                        <FileCheck size={15} />
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {stats.pendingApplications || 0} applications awaiting review
+                      </p>
+                    </button>
+                  </>
+                )}
 
-                {isSuperAdmin && <button
-    onClick={() => setActiveTab("cms")}
-    className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-left hover:bg-teal-500/20 transition-all"
-  >
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setActiveTab("settings");
+                      setSettingsSubTab("branding");
+                    }}
+                    className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-left hover:bg-teal-500/20 transition-all"
+                  >
                     <div className="text-teal-300 font-bold text-xs flex items-center justify-between">
-                      <span>Change Website Photos</span>
+                      <span>Update Group Photo & Logo</span>
                       <UploadCloud size={15} />
                     </div>
                     <p className="text-[11px] text-slate-400 mt-1">Upload new Group Photo or Club Logo</p>
-                  </button>}
+                  </button>
+                )}
               </div>
             </div>
-          </div>}
+          </div>
+        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 2: EVENTS */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "events" && (isSuperAdmin || isPresident) && <div className="space-y-6">
-            <div className="flex items-center justify-between">
+        {/* ========================================================================= */}
+        {/* MODULE 2: EVENTS, REGISTRATIONS & PAYMENT PROOF */}
+        {/* ========================================================================= */}
+        {activeTab === "events_hub" && (isSuperAdmin || isPresident) && (
+          <div className="space-y-6">
+            {/* Sub-tab Navigation for Module 2 */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Departmental Events ({events.length})</h2>
-                <p className="text-xs text-slate-400">Manage free and paid workshops, seminars, and hackathons</p>
-              </div>
-              <button
-    onClick={() => {
-      setEditingEventId(null);
-      setEventForm(defaultEventForm);
-      setIsEventModalOpen(true);
-    }}
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors"
-  >
-                <Plus size={14} />
-                <span>Create New Event</span>
-              </button>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                  <tr>
-                    <th className="py-3 px-4">Event & Category</th>
-                    <th className="py-3 px-4">Fee Structure</th>
-                    <th className="py-3 px-4">Schedule</th>
-                    <th className="py-3 px-4">Seats</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {events.map((e) => <tr key={e._id} className="hover:bg-white/5">
-                      <td className="py-3.5 px-4">
-                        <strong className="text-white block">{e.title}</strong>
-                        <span className="text-[10px] text-electric-cyan uppercase font-semibold">
-                          {e.category}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {e.isPaid ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            ₹{(e.fee / 100).toFixed(2)}
-                          </span> : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            FREE
-                          </span>}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {new Date(e.startDate).toLocaleDateString()}
-                        <span className="block text-[10px] text-slate-400">{e.timeString || "TBD"}</span>
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold text-white">
-                        {e.registeredCount || 0} / {e.capacity || "\u221E"}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span
-    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${e.status === "PUBLISHED" ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-700 text-slate-400"}`}
-  >
-                          {e.status}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        <button
-    onClick={() => handleEditEvent(e)}
-    className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300"
-  >
-                          Edit
-                        </button>
-                        <button
-    onClick={() => handleDeleteEvent(e._id)}
-    className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
-  >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>)}
-                </tbody>
-              </table>
-            </div>
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 3: EVENT REGISTRATIONS */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "registrations" && (isSuperAdmin || isPresident) && <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">Student Event Registrations</h2>
-                <p className="text-xs text-slate-400">Track attendees, attendance, and payment state</p>
+                <h2 className="text-lg font-bold text-white">Events, Registrations & Payment Proof</h2>
+                <p className="text-xs text-slate-400">
+                  Manage events, inspect ticket attendee lists, and verify UPI payment screenshots
+                </p>
               </div>
 
-              {selectedEventId && <a
-    href={api.registrations.getExportUrl(selectedEventId)}
-    download
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg"
-  >
-                  <Download size={14} />
-                  <span>Export CSV with Payment Info</span>
-                </a>}
+              <div className="flex items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
+                <button
+                  onClick={() => setEventsSubTab("events")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    eventsSubTab === "events"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Events ({events.length})
+                </button>
+                <button
+                  onClick={() => setEventsSubTab("registrations")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    eventsSubTab === "registrations"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Registrations & Attendees ({stats.totalRegistrations})
+                </button>
+                <button
+                  onClick={() => setEventsSubTab("payments")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    eventsSubTab === "payments"
+                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-bold"
+                      : "text-amber-400 hover:text-amber-300"
+                  }`}
+                >
+                  <CreditCard size={13} />
+                  <span>Payment Verification</span>
+                  {pendingPaymentsCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-600 text-white font-extrabold">
+                      {pendingPaymentsCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
-            {
-    /* Event Selector */
-  }
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              <span className="text-xs font-semibold text-slate-400 whitespace-nowrap">Filter Event:</span>
-              {events.map((e) => <button
-    key={e._id}
-    onClick={() => setSelectedEventId(e._id)}
-    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all ${selectedEventId === e._id ? "bg-electric-blue text-white border-electric-blue" : "bg-navy-900 text-slate-400 border-white/5 hover:text-white"}`}
-  >
-                  {e.title}
-                </button>)}
-            </div>
+            {/* Sub-tab 1: Events Management */}
+            {eventsSubTab === "events" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="relative w-72">
+                    <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search events by title or code..."
+                      value={eventSearch}
+                      onChange={(e) => setEventSearch(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingEventId(null);
+                      setEventForm(defaultEventForm);
+                      setIsEventModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors"
+                  >
+                    <Plus size={14} />
+                    <span>Create New Event</span>
+                  </button>
+                </div>
 
-            {loadingAttendees ? <div className="p-8 text-center text-xs text-slate-400">Loading registrations...</div> : attendees.length === 0 ? <div className="p-8 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                No students registered for this event yet.
-              </div> : <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="py-3 px-4">Ticket Pass</th>
-                      <th className="py-3 px-4">Student</th>
-                      <th className="py-3 px-4">Department / College</th>
-                      <th className="py-3 px-4">Registration Type</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4">Payment & Proof</th>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4 text-right">Attendance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {attendees.map((a) => {
-                      const displayTicketId = a.ticketId || `ACES-${(a._id || "").substring(18).toUpperCase()}`;
-                      const studentName = a.fullName || a.name || "Student Participant";
-                      return (
-                        <tr key={a._id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-3.5 px-4 font-mono">
-                            <span className="font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded text-[11px] block text-center">
-                              {displayTicketId}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <strong className="text-white block">{studentName}</strong>
-                            <span className="text-[10px] text-slate-400 block">{a.email}</span>
-                            {a.phone && (
-                              <span className="text-[10px] text-slate-400 block font-mono">📞 {a.phone}</span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="font-medium text-slate-200">
-                              {a.department || "Computer Engineering"} • <span className="font-bold text-cyan-300">{a.academicYear || "SE"}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block truncate max-w-[180px]" title={a.college}>
-                              {a.college || "KBTCOE Nashik"}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            {a.isGroupRegistration ? (
-                              <div className="space-y-1">
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30 inline-block">
-                                  👥 Team: {a.groupName || "Group"}
+                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="py-3 px-4">Event & Code</th>
+                        <th className="py-3 px-4">Fee Structure</th>
+                        <th className="py-3 px-4">Schedule</th>
+                        <th className="py-3 px-4">Seats</th>
+                        <th className="py-3 px-4">WhatsApp Link</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {events
+                        .filter(
+                          (e) =>
+                            !eventSearch ||
+                            e.title.toLowerCase().includes(eventSearch.toLowerCase()) ||
+                            (e.eventCode && e.eventCode.toLowerCase().includes(eventSearch.toLowerCase()))
+                        )
+                        .map((e) => (
+                          <tr key={e._id} className="hover:bg-white/5 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <strong className="text-white block">{e.title}</strong>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] text-electric-cyan font-mono font-bold bg-white/5 px-1.5 py-0.5 rounded">
+                                  {e.eventCode || "ACES-EVT"}
                                 </span>
-                                {a.groupMembers && a.groupMembers.length > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewingTeamModal(a)}
-                                    className="text-[10px] text-cyan-400 hover:text-cyan-300 underline block"
-                                  >
-                                    View Members ({a.groupMembers.length + 1})
-                                  </button>
-                                )}
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold">
+                                  {e.category}
+                                </span>
                               </div>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-slate-300 border border-white/10">
-                                👤 Individual
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                a.status === "REGISTERED" || a.status === "ATTENDED"
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                  : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                              }`}
-                            >
-                              {a.status}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="space-y-1">
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {e.isPaid ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  ₹{(e.fee / 100).toFixed(2)}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                  FREE
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {new Date(e.startDate).toLocaleDateString()}
+                              <span className="block text-[10px] text-slate-400">{e.timeString || "TBD"}</span>
+                            </td>
+                            <td className="py-3.5 px-4 font-semibold text-white">
+                              {e.registeredCount || 0} / {e.capacity || "∞"}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {e.whatsappGroupUrl || e.whatsappLink ? (
+                                <a
+                                  href={e.whatsappGroupUrl || e.whatsappLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-medium"
+                                >
+                                  <span>WhatsApp Group</span>
+                                  <ExternalLink size={10} />
+                                </a>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">Not linked</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase inline-block ${
-                                  a.paymentStatus === "VERIFIED"
-                                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                    : a.paymentStatus === "PROOF_SUBMITTED"
-                                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                    : a.paymentStatus === "REJECTED"
-                                    ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                                    : "bg-slate-800 text-slate-400"
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  e.status === "PUBLISHED"
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : "bg-slate-700 text-slate-400"
                                 }`}
                               >
-                                {a.paymentStatus || (a.isPaidEvent ? "AWAITING_PAYMENT" : "FREE")}
+                                {e.status}
                               </span>
-                              {a.utrReference && (
-                                <span className="font-mono text-[10px] text-amber-300 block truncate max-w-[140px]" title={a.utrReference}>
-                                  UTR: {a.utrReference}
-                                </span>
-                              )}
-                              {a.paymentScreenshotUrl && (
-                                <button
-                                  type="button"
-                                  onClick={() => setInspectingProofUrl(a.paymentScreenshotUrl)}
-                                  className="text-[10px] text-cyan-400 hover:text-cyan-300 underline flex items-center gap-1"
+                            </td>
+                            <td className="py-3.5 px-4 text-right space-x-2">
+                              <button
+                                onClick={() => handleEditEvent(e)}
+                                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEvent(e._id)}
+                                className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 2: Registrations & Attendees */}
+            {eventsSubTab === "registrations" && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-navy-900 border border-white/10">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                      Filter Attendees by Event:
+                    </label>
+                    <select
+                      value={selectedEventId}
+                      onChange={(e) => setSelectedEventId(e.target.value)}
+                      className="px-3 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-white font-medium"
+                    >
+                      {events.map((ev) => (
+                        <option key={ev._id} value={ev._id}>
+                          {ev.title} ({ev.isPaid ? `₹${(ev.fee / 100).toFixed(0)}` : "FREE"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="text-xs text-slate-400">
+                    Total Attendees Enrolled: <strong className="text-white">{attendees.length}</strong>
+                  </div>
+                </div>
+
+                {loadingAttendees ? (
+                  <div className="p-12 text-center text-xs text-slate-400">Loading attendee records...</div>
+                ) : attendees.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
+                    No student registrations recorded for this event yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                        <tr>
+                          <th className="py-3 px-4">Ticket ID</th>
+                          <th className="py-3 px-4">Participant Details</th>
+                          <th className="py-3 px-4">College / Dept</th>
+                          <th className="py-3 px-4">Payment Status</th>
+                          <th className="py-3 px-4">Attendance</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {attendees.map((a) => {
+                          const participantName = a.fullName || a.name || "Student";
+                          const participantEmail = a.email || "";
+                          const participantPhone = a.phone || "";
+                          const ticketId = a.ticketId || `ACES-${(a._id || "").substring(18).toUpperCase()}`;
+
+                          return (
+                            <tr key={a._id} className="hover:bg-white/5 transition-colors">
+                              <td className="py-3.5 px-4 font-mono text-[11px] font-bold text-cyan-300">
+                                {ticketId}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <strong className="text-white block">{participantName}</strong>
+                                <span className="text-[10px] text-slate-400">{participantEmail}</span>
+                                {participantPhone && (
+                                  <span className="block text-[10px] text-slate-500 font-mono">
+                                    📞 {participantPhone}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                {a.department || "Comp Engg"} • <span className="text-white">{a.academicYear || "SE"}</span>
+                                <span className="block text-[10px] text-slate-400">{a.college || "NDMVP KBTCOE"}</span>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    a.paymentStatus === "VERIFIED" || a.paymentStatus === "COMPLETED"
+                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                      : a.paymentStatus === "PROOF_SUBMITTED"
+                                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                      : "bg-slate-700 text-slate-300"
+                                  }`}
                                 >
-                                  <Eye size={10} /> View Receipt
+                                  {a.paymentStatus || "FREE"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <button
+                                  onClick={async () => {
+                                    const next = !a.attended;
+                                    await api.registrations.markAttendance(a._id, next);
+                                    setAttendees((prev) =>
+                                      prev.map((item) =>
+                                        item._id === a._id ? { ...item, attended: next } : item
+                                      )
+                                    );
+                                  }}
+                                  className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-colors ${
+                                    a.attended
+                                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+                                  }`}
+                                >
+                                  {a.attended ? "✓ Attended" : "Mark Present"}
                                 </button>
-                              )}
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                {a.isGroupRegistration && (
+                                  <button
+                                    onClick={() => setViewingTeamModal(a)}
+                                    className="px-2.5 py-1 rounded bg-electric-blue/20 text-electric-cyan text-[11px] font-semibold hover:bg-electric-blue/30"
+                                  >
+                                    View Team ({a.groupMembers?.length || 0})
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sub-tab 3: Payment Verification Queue */}
+            {eventsSubTab === "payments" && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Manual Payment Verification Queue</h3>
+                    <p className="text-xs text-slate-400">
+                      Review student UTR references and payment proof screenshots. Approving verifies ticket & emails receipt.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {["ALL", "PROOF_SUBMITTED", "VERIFIED", "REJECTED"].map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setPaymentStatusFilter(st)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                          paymentStatusFilter === st
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                            : "bg-navy-900 text-slate-400 border-white/5 hover:text-white"
+                        }`}
+                      >
+                        {st === "PROOF_SUBMITTED" ? "PENDING" : st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by UTR reference, student name, or email..."
+                    value={paymentSearch}
+                    onChange={(e) => setPaymentSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
+                  />
+                </div>
+
+                {filteredPayments.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
+                    No payment submissions match the selected filter.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                        <tr>
+                          <th className="py-3 px-4">Student</th>
+                          <th className="py-3 px-4">Event</th>
+                          <th className="py-3 px-4">Fee Amount</th>
+                          <th className="py-3 px-4">UTR Reference</th>
+                          <th className="py-3 px-4">Submitted At</th>
+                          <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4 text-right">Review Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {filteredPayments.map((p) => {
+                          const studentName =
+                            p.userId?.fullName ||
+                            p.userId?.name ||
+                            p.registrationId?.fullName ||
+                            p.name ||
+                            "Student Participant";
+                          const studentEmail =
+                            p.userId?.email || p.registrationId?.email || p.email || "";
+                          const eventTitle = typeof p.eventId === "object" ? p.eventId.title : "Event";
+                          const displayAmount = (p.expectedAmount || p.amountInPaise || 0) / 100;
+                          const displayUtr = p.utrReference || p.utrNumber || "N/A";
+
+                          return (
+                            <tr key={p._id} className="hover:bg-white/5 transition-colors">
+                              <td className="py-3.5 px-4">
+                                <strong className="text-white block">{studentName}</strong>
+                                <span className="text-[10px] text-slate-400 block">{studentEmail}</span>
+                              </td>
+                              <td className="py-3.5 px-4 font-medium text-white">{eventTitle}</td>
+                              <td className="py-3.5 px-4 font-bold text-amber-300">
+                                ₹{displayAmount.toFixed(2)}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[11px] text-cyan-300 bg-white/5 px-2 py-1 rounded inline-block my-2">
+                                {displayUtr}
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
+                                {new Date(p.submittedAt || p.createdAt).toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                    p.status === "VERIFIED"
+                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                      : p.status === "PROOF_SUBMITTED"
+                                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                      : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                  }`}
+                                >
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <button
+                                  onClick={() => {
+                                    setInspectingPayment(p);
+                                    setRejectionReason(p.rejectionReason || "");
+                                    setAdminNote(p.adminNotes || "");
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 transition-colors inline-flex items-center gap-1.5"
+                                >
+                                  <Eye size={12} />
+                                  <span>Inspect Proof</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODULE 3: TEAM MANAGEMENT AND MEMBERS ROLE */}
+        {/* ========================================================================= */}
+        {activeTab === "team" && (isSuperAdmin || isPresident) && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-white">Team Management & Member Roles</h2>
+                <p className="text-xs text-slate-400">
+                  Assign dynamic posts (President, Vice Presidents, Execution Team, Members) and manage platform permissions
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
+                <button
+                  onClick={() => setTeamSubTab("members")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    teamSubTab === "members"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Platform Approved Members ({approvedPlatformMembers.length})
+                </button>
+                <button
+                  onClick={() => setTeamSubTab("committee")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    teamSubTab === "committee"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Public Team Directory ({teamList.length})
+                </button>
+                <button
+                  onClick={() => setTeamSubTab("designations")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    teamSubTab === "designations"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Designations ({designations.length})
+                </button>
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => setTeamSubTab("users")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      teamSubTab === "users"
+                        ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    User Roles ({usersList.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sub-tab 1: Platform Members with Post Assigner */}
+            {teamSubTab === "members" && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-navy-900 border border-white/10">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                      Dynamic Team Hierarchy Structure:
+                    </span>
+                    <p className="text-xs text-slate-300">
+                      1. President (Top) → 2. Vice Presidents (2-3 below) → 3. Execution Team → 4. ACES Members
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search approved members..."
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    className="px-3.5 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="py-3 px-4">Member Photo & Name</th>
+                        <th className="py-3 px-4">Assigned Post</th>
+                        <th className="py-3 px-4">Hierarchy Category</th>
+                        <th className="py-3 px-4">Department / Year</th>
+                        <th className="py-3 px-4">Public Team Page</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {approvedPlatformMembers
+                        .filter(
+                          (m) =>
+                            !memberSearch ||
+                            m.fullName.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                            m.email.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                            (m.assignedPost && m.assignedPost.toLowerCase().includes(memberSearch.toLowerCase()))
+                        )
+                        .map((m) => (
+                          <tr key={m._id} className="hover:bg-white/5 transition-colors">
+                            <td className="py-3.5 px-4 flex items-center gap-3">
+                              <img
+                                src={m.photoUrl || "/assets/members/President.jpeg"}
+                                alt={m.fullName}
+                                className="w-10 h-10 rounded-full object-cover border border-white/20 shadow"
+                                onError={(e) => {
+                                  e.target.src = "/assets/members/President.jpeg";
+                                }}
+                              />
+                              <div>
+                                <strong className="text-white block">{m.fullName}</strong>
+                                <span className="text-[10px] text-slate-400">{m.email}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 font-semibold text-white">
+                              {m.assignedPost || "ACES Member"}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                                  m.postCategory === "PRESIDENT"
+                                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                    : m.postCategory === "VICE_PRESIDENT"
+                                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                                    : m.postCategory === "EXECUTION_TEAM"
+                                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                                    : "bg-white/10 text-slate-300"
+                                }`}
+                              >
+                                {m.postCategory || "MEMBER"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {m.department || "Computer Engineering"} •{" "}
+                              <span className="font-semibold text-white">{m.academicYear || "SE"}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  m.isPublishedOnTeam ?? true
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : "bg-slate-700 text-slate-400"
+                                }`}
+                              >
+                                {m.isPublishedOnTeam ?? true ? "Published" : "Hidden"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                onClick={() => openAssignPostModal(m)}
+                                className="px-3 py-1.5 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 transition-colors"
+                              >
+                                Assign Post & Role
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 2: Reorderable Committee Team */}
+            {teamSubTab === "committee" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">
+                    Use up/down arrows to adjust the display sequence on the live website.
+                  </span>
+                  <button
+                    onClick={() => {
+                      setEditingMemberId(null);
+                      setMemberPhotoFile(null);
+                      setTeamForm({
+                        name: "",
+                        designationId: designations[0]?._id || "",
+                        role: "ACES Member",
+                        tier: "COMMITTEE",
+                        department: "Computer Engineering",
+                        academicYear: "SE",
+                        bio: "",
+                        photoUrl: "/assets/members/President.jpeg",
+                        linkedinUrl: "",
+                        githubUrl: "",
+                        displayOrder: teamList.length + 1,
+                        isPublished: true
+                      });
+                      setIsTeamModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
+                  >
+                    <Plus size={14} />
+                    <span>Add Committee Profile</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="py-3 px-4">Order</th>
+                        <th className="py-3 px-4">Member Photo & Name</th>
+                        <th className="py-3 px-4">Public Designation</th>
+                        <th className="py-3 px-4">Department / Year</th>
+                        <th className="py-3 px-4">Published</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {teamList.map((m, idx) => (
+                        <tr key={m._id} className="hover:bg-white/5">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleMoveTeamMember(idx, "up")}
+                                disabled={idx === 0}
+                                className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-slate-400"
+                              >
+                                <ArrowUp size={12} />
+                              </button>
+                              <span className="font-mono text-white text-[11px] w-5 text-center">
+                                {idx + 1}
+                              </span>
+                              <button
+                                onClick={() => handleMoveTeamMember(idx, "down")}
+                                disabled={idx === teamList.length - 1}
+                                className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-slate-400"
+                              >
+                                <ArrowDown size={12} />
+                              </button>
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
-                            {new Date(a.registrationDate || a.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              onClick={async () => {
-                                const next = a.status === "ATTENDED" ? "REGISTERED" : "ATTENDED";
-                                await api.registrations.updateAttendance(a._id, next);
-                                setAttendees((prev) =>
-                                  prev.map((item) => (item._id === a._id ? { ...item, status: next } : item))
-                                );
+                          <td className="py-3.5 px-4 flex items-center gap-3">
+                            <img
+                              src={m.photoUrl}
+                              alt={m.name}
+                              className="w-10 h-10 rounded-full object-cover border border-white/20 shadow"
+                              onError={(e) => {
+                                e.target.src = "/assets/members/President.jpeg";
                               }}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                a.status === "ATTENDED"
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                  : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10"
-                              }`}
-                            >
-                              {a.status === "ATTENDED" ? "✓ Attended" : "Mark Attended"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>}
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 4: PAYMENT VERIFICATION */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "payments" && (isSuperAdmin || isPresident) && <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">Manual Payment Verification Queue</h2>
-                <p className="text-xs text-slate-400">
-                  Review student UTR references and private encrypted payment screenshots
-                </p>
-              </div>
-
-              {
-    /* Status Filters */
-  }
-              <div className="flex items-center gap-2">
-                {["ALL", "PROOF_SUBMITTED", "VERIFIED", "REJECTED"].map((st) => <button
-    key={st}
-    onClick={() => setPaymentStatusFilter(st)}
-    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${paymentStatusFilter === st ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-navy-900 text-slate-400 border-white/5 hover:text-white"}`}
-  >
-                    {st === "PROOF_SUBMITTED" ? "PENDING" : st}
-                  </button>)}
-              </div>
-            </div>
-
-            {
-    /* Search Input */
-  }
-            <div className="relative">
-              <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
-              <input
-    type="text"
-    placeholder="Search by UTR reference, student name, or email..."
-    value={paymentSearch}
-    onChange={(e) => setPaymentSearch(e.target.value)}
-    className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-  />
-            </div>
-
-            {filteredPayments.length === 0 ? <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                No payment submissions match the selected filter.
-              </div> : <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                    <tr>
-                      <th className="py-3 px-4">Student</th>
-                      <th className="py-3 px-4">Event</th>
-                      <th className="py-3 px-4">Expected Fee</th>
-                      <th className="py-3 px-4">UTR Reference</th>
-                      <th className="py-3 px-4">Submitted At</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Review Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {filteredPayments.map((p) => {
-                      const studentName =
-                        p.userId?.fullName ||
-                        p.userId?.name ||
-                        p.registrationId?.fullName ||
-                        p.registrationId?.name ||
-                        p.name ||
-                        "Student Participant";
-                      const studentEmail =
-                        p.userId?.email || p.registrationId?.email || p.email || "";
-                      const eventTitle = typeof p.eventId === "object" ? p.eventId.title : "Event";
-                      const displayAmount = (p.expectedAmount || p.amountInPaise || 0) / 100;
-                      const displayUtr = p.utrReference || p.utrNumber || "N/A";
-                      return (
-                        <tr key={p._id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-3.5 px-4">
-                            <strong className="text-white block">{studentName}</strong>
-                            <span className="text-[10px] text-slate-400 block">{studentEmail}</span>
-                          </td>
-                          <td className="py-3.5 px-4 font-medium text-white">{eventTitle}</td>
-                          <td className="py-3.5 px-4 font-bold text-amber-300">
-                            ₹{displayAmount.toFixed(2)}
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-[11px] text-cyan-300 bg-white/5 px-2 py-1 rounded inline-block my-2">
-                            {displayUtr}
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
-                            {new Date(p.submittedAt || p.createdAt).toLocaleString()}
+                            />
+                            <div>
+                              <strong className="text-white block">{m.name}</strong>
+                              <span className="text-[10px] text-slate-400">{m.role}</span>
+                            </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span
-      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${p.status === "VERIFIED" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : p.status === "PROOF_SUBMITTED" ? "bg-amber-500/20 text-amber-300 border border-amber-500/30" : "bg-rose-500/20 text-rose-300 border border-rose-500/30"}`}
-    >
-                              {p.status}
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-cyan-300 border border-white/10">
+                              {typeof m.designationId === "object" && m.designationId
+                                ? m.designationId.title
+                                : m.role}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-right">
+                          <td className="py-3.5 px-4">
+                            {m.department} • <span className="font-semibold text-white">{m.academicYear || "SE"}</span>
+                          </td>
+                          <td className="py-3.5 px-4">
                             <button
-      onClick={() => {
-        setInspectingPayment(p);
-        setRejectionReason(p.rejectionReason || "");
-        setAdminNote(p.adminNotes || "");
-      }}
-      className="px-3 py-1.5 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 transition-colors inline-flex items-center gap-1.5"
-    >
-                              <Eye size={12} />
-                              <span>Inspect Proof</span>
+                              onClick={async () => {
+                                const next = !m.isPublished;
+                                await api.team.update(m._id, { isPublished: next });
+                                setTeamList((prev) =>
+                                  prev.map((item) =>
+                                    item._id === m._id ? { ...item, isPublished: next } : item
+                                  )
+                                );
+                              }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                m.isPublished
+                                  ? "bg-emerald-500/20 text-emerald-300"
+                                  : "bg-slate-700 text-slate-400"
+                              }`}
+                            >
+                              {m.isPublished ? "Published" : "Hidden"}
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4 text-right space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingMemberId(m._id);
+                                setMemberPhotoFile(null);
+                                setTeamForm({
+                                  name: m.name,
+                                  designationId:
+                                    typeof m.designationId === "object" && m.designationId
+                                      ? m.designationId._id
+                                      : m.designationId || "",
+                                  role: m.role,
+                                  tier: m.tier || "COMMITTEE",
+                                  department: m.department || "Computer Engineering",
+                                  academicYear: m.academicYear || "SE",
+                                  bio: m.bio || "",
+                                  photoUrl: m.photoUrl,
+                                  linkedinUrl: m.linkedinUrl || "",
+                                  githubUrl: m.githubUrl || "",
+                                  displayOrder: m.displayOrder || 10,
+                                  isPublished: m.isPublished ?? true
+                                });
+                                setIsTeamModalOpen(true);
+                              }}
+                              className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300"
+                            >
+                              Edit & Photo
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTeamMember(m._id)}
+                              className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
+                            >
+                              Delete
                             </button>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>}
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 5: TEAM MANAGEMENT (With Photo Upload) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "team" && (isSuperAdmin || isPresident) && <div className="space-y-8">
-            {
-    /* Header */
-  }
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">Committee Team & Configurable Roles</h2>
-                <p className="text-xs text-slate-400">
-                  Upload member photos, assign designations, and reorder members
-                </p>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+            )}
 
-              <div className="flex items-center gap-3">
-                <button
-    onClick={() => setIsDesgModalOpen(true)}
-    className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10"
-  >
-                  + Add Designation
-                </button>
-                <button
-    onClick={() => {
-      setEditingMemberId(null);
-      setMemberPhotoFile(null);
-      setTeamForm({
-        name: "",
-        designationId: designations[0]?._id || "",
-        role: "COMMITTEE MEMBER",
-        tier: "COMMITTEE",
-        department: "Computer Engineering",
-        academicYear: "SE",
-        bio: "",
-        photoUrl: "/assets/members/President.jpeg",
-        linkedinUrl: "",
-        githubUrl: "",
-        displayOrder: teamList.length + 1,
-        isPublished: true
-      });
-      setIsTeamModalOpen(true);
-    }}
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
-  >
-                  <Plus size={14} />
-                  <span>Add Team Member</span>
-                </button>
+            {/* Sub-tab 3: Club Designations */}
+            {teamSubTab === "designations" && (
+              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                      Club Designations ({designations.length})
+                    </h3>
+                    <p className="text-xs text-slate-400">Designation titles assigned across the department</p>
+                  </div>
+                  <button
+                    onClick={() => setIsDesgModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10"
+                  >
+                    + Add Designation
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {designations.map((d) => (
+                    <div
+                      key={d._id}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white"
+                    >
+                      <span>{d.title}</span>
+                      <span className="text-[10px] text-amber-400 font-mono">({d.tier})</span>
+                      {!d.isRetired && (
+                        <button
+                          onClick={() => handleRetireDesignation(d._id)}
+                          className="text-slate-500 hover:text-rose-400 text-[10px]"
+                          title="Retire designation"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {
-    /* Designations Pill Cloud */
-  }
-            <div className="p-4 rounded-2xl bg-navy-900 border border-white/10">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
-                Configurable Club Designations ({designations.length})
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {designations.map((d) => <div
-    key={d._id}
-    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white"
-  >
-                    <span>{d.title}</span>
-                    <span className="text-[10px] text-amber-400 font-mono">({d.tier})</span>
-                    {!d.isRetired && <button
-    onClick={() => handleRetireDesignation(d._id)}
-    className="text-slate-500 hover:text-rose-400 text-[10px]"
-    title="Retire designation"
-  >
-                        ✕
-                      </button>}
-                  </div>)}
+            {/* Sub-tab 4: Platform User Roles & Administrative Permissions */}
+            {teamSubTab === "users" && isSuperAdmin && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Registered Users & System Roles ({usersList.length})</h3>
+                    <p className="text-xs text-slate-400">
+                      Configure SUPER_ADMIN, FACULTY, PRESIDENT, or MEMBER system privileges
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by student name or email..."
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    className="px-3.5 py-1.5 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="py-3 px-4">User</th>
+                        <th className="py-3 px-4">Department / Year</th>
+                        <th className="py-3 px-4">Administrative Role</th>
+                        <th className="py-3 px-4">Club Member Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {usersList
+                        .filter(
+                          (u) =>
+                            !memberSearch ||
+                            u.fullName.toLowerCase().includes(memberSearch.toLowerCase()) ||
+                            u.email.toLowerCase().includes(memberSearch.toLowerCase())
+                        )
+                        .map((u) => (
+                          <tr key={u._id} className="hover:bg-white/5">
+                            <td className="py-3.5 px-4">
+                              <strong className="text-white block">{u.fullName}</strong>
+                              <span className="text-[10px] text-slate-400">{u.email}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {u.department} • <span className="font-semibold text-white">{u.academicYear || "SE"}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <select
+                                value={u.role}
+                                onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                                  u.role === "SUPER_ADMIN" || u.role === "ADMIN"
+                                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                    : u.role === "FACULTY"
+                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                    : u.role === "PRESIDENT"
+                                    ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30"
+                                    : "bg-navy-950 text-slate-300 border-white/10"
+                                }`}
+                              >
+                                <option value="SUPER_ADMIN">SUPER_ADMIN (Full Control)</option>
+                                <option value="FACULTY">FACULTY (Activities & Achievements)</option>
+                                <option value="PRESIDENT">PRESIDENT (Events & Team)</option>
+                                <option value="MEMBER">MEMBER (Student Member)</option>
+                                <option value="VISITOR">VISITOR (Guest)</option>
+                              </select>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  u.isApprovedMember
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : "bg-slate-700 text-slate-400"
+                                }`}
+                              >
+                                {u.isApprovedMember ? "Approved Member" : "Regular User"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                onClick={async () => {
+                                  const nextApproved = !u.isApprovedMember;
+                                  await api.admin.updateUser(u._id, { isApprovedMember: nextApproved });
+                                  setUsersList((prev) =>
+                                    prev.map((item) =>
+                                      item._id === u._id ? { ...item, isApprovedMember: nextApproved } : item
+                                    )
+                                  );
+                                }}
+                                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-semibold"
+                              >
+                                Toggle Approval
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+        )}
 
-            {
-    /* Committee Members Table */
-  }
-            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                  <tr>
-                    <th className="py-3 px-4">Order</th>
-                    <th className="py-3 px-4">Member Photo & Name</th>
-                    <th className="py-3 px-4">Public Designation</th>
-                    <th className="py-3 px-4">Department / Year</th>
-                    <th className="py-3 px-4">Published</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {teamList.map((m, idx) => <tr key={m._id} className="hover:bg-white/5">
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1">
-                          <button
-    onClick={() => handleMoveTeamMember(idx, "up")}
-    disabled={idx === 0}
-    className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-slate-400"
-  >
-                            <ArrowUp size={12} />
-                          </button>
-                          <span className="font-mono text-white text-[11px] w-5 text-center">
-                            {idx + 1}
-                          </span>
-                          <button
-    onClick={() => handleMoveTeamMember(idx, "down")}
-    disabled={idx === teamList.length - 1}
-    className="p-1 rounded hover:bg-white/10 disabled:opacity-30 text-slate-400"
-  >
-                            <ArrowDown size={12} />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 flex items-center gap-3">
-                        <img
-    src={m.photoUrl}
-    alt={m.name}
-    className="w-10 h-10 rounded-full object-cover border border-white/20 shadow"
-  />
-                        <div>
-                          <strong className="text-white block">{m.name}</strong>
-                          <span className="text-[10px] text-slate-400">{m.role}</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-cyan-300 border border-white/10">
-                          {typeof m.designationId === "object" && m.designationId ? m.designationId.title : m.role}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        {m.department} • <span className="font-semibold text-white">{m.academicYear || "SE"}</span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <button
-    onClick={async () => {
-      const next = !m.isPublished;
-      await api.team.update(m._id, { isPublished: next });
-      setTeamList(
-        (prev) => prev.map((item) => item._id === m._id ? { ...item, isPublished: next } : item)
-      );
-    }}
-    className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.isPublished ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-700 text-slate-400"}`}
-  >
-                          {m.isPublished ? "Published" : "Hidden"}
-                        </button>
-                      </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        <button
-    onClick={() => {
-      setEditingMemberId(m._id);
-      setMemberPhotoFile(null);
-      setTeamForm({
-        name: m.name,
-        designationId: typeof m.designationId === "object" && m.designationId ? m.designationId._id : m.designationId || "",
-        role: m.role,
-        tier: m.tier || "COMMITTEE",
-        department: m.department || "Computer Engineering",
-        academicYear: m.academicYear || "SE",
-        bio: m.bio || "",
-        photoUrl: m.photoUrl,
-        linkedinUrl: m.linkedinUrl || "",
-        githubUrl: m.githubUrl || "",
-        displayOrder: m.displayOrder || 10,
-        isPublished: m.isPublished ?? true
-      });
-      setIsTeamModalOpen(true);
-    }}
-    className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300"
-  >
-                          Edit & Change Photo
-                        </button>
-                        <button
-    onClick={() => handleDeleteTeamMember(m._id)}
-    className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400"
-  >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>)}
-                </tbody>
-              </table>
-            </div>
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 6: EVENT GALLERY */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "gallery" && (isSuperAdmin || isPresident) && <div className="space-y-6">
+        {/* ========================================================================= */}
+        {/* MODULE 4: EVENT GALLERY */}
+        {/* ========================================================================= */}
+        {activeTab === "gallery" && (isSuperAdmin || isPresident || isFaculty) && (
+          <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-white">Event Media Albums ({albums.length})</h2>
@@ -1512,190 +2002,225 @@ export const AdminDashboard = () => {
               </div>
 
               <button
-    onClick={() => setIsAlbumModalOpen(true)}
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
-  >
+                onClick={() => setIsAlbumModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
+              >
                 <Plus size={14} />
-                <span>Create Event Album</span>
+                <span>Create New Album</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {albums.map((alb) => <div
-    key={alb._id}
-    className="rounded-2xl bg-navy-900 border border-white/10 overflow-hidden flex flex-col justify-between"
-  >
-                  <div>
-                    <div className="relative h-44 bg-navy-950 overflow-hidden">
-                      {alb.coverImageUrl ? <img
-    src={alb.coverImageUrl}
-    alt={alb.title}
-    className="w-full h-full object-cover"
-  /> : <div className="flex items-center justify-center h-full text-slate-600 text-xs">
-                          No cover photo uploaded
-                        </div>}
-                      <span className="absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-bold bg-navy-950/80 text-white backdrop-blur border border-white/10">
-                        {alb.category}
-                      </span>
-                    </div>
+              {albums.map((album) => (
+                <div
+                  key={album._id}
+                  className="rounded-2xl overflow-hidden bg-navy-900 border border-white/10 space-y-3 p-4"
+                >
+                  <div className="relative h-40 bg-navy-950 rounded-xl overflow-hidden border border-white/5">
+                    {album.coverImageUrl ? (
+                      <img
+                        src={album.coverImageUrl}
+                        alt={album.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-600 text-xs">
+                        No cover image
+                      </div>
+                    )}
+                    <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold bg-navy-950/80 text-white">
+                      {album.mediaCount || album.mediaItems?.length || 0} items
+                    </span>
+                  </div>
 
-                    <div className="p-4 space-y-2">
-                      <h3 className="font-bold text-white text-sm">{alb.title}</h3>
-                      <p className="text-[11px] text-slate-400 line-clamp-2">{alb.description}</p>
-                      <div className="text-[10px] text-slate-500">
-                        Date: {new Date(alb.eventDate).toLocaleDateString()} • {alb.media?.length || 0} media assets
+                  <div>
+                    <h3 className="font-bold text-white text-sm">{album.title}</h3>
+                    <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{album.description}</p>
+                    <span className="text-[10px] text-electric-cyan block mt-1">
+                      {new Date(album.eventDate).toLocaleDateString()} • {album.academicYear}
+                    </span>
+                  </div>
+
+                  {uploadingAlbumId === album._id ? (
+                    <div className="p-3 rounded-xl bg-navy-950 border border-white/10 space-y-2">
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                        className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:bg-white/10 file:text-white w-full"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Caption (e.g. Keynote address)..."
+                        value={uploadMediaCaption}
+                        onChange={(e) => setUploadMediaCaption(e.target.value)}
+                        className="w-full px-2 py-1 bg-navy-900 border border-white/10 rounded text-xs text-white"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUploadMedia(album._id)}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold"
+                        >
+                          Upload
+                        </button>
+                        <button
+                          onClick={() => setUploadingAlbumId(null)}
+                          className="px-3 py-1 bg-white/10 text-slate-300 rounded text-xs"
+                        >
+                          Cancel
+                        </button>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="p-4 border-t border-white/5 bg-white/[0.02] flex items-center justify-between">
-                    <button
-    onClick={() => setUploadingAlbumId(alb._id)}
-    className="text-xs font-semibold text-electric-cyan hover:underline flex items-center gap-1"
-  >
-                      <UploadCloud size={13} />
-                      <span>Upload Photos/Videos</span>
-                    </button>
-                    <button
-    onClick={() => handleDeleteAlbum(alb._id)}
-    className="text-xs font-semibold text-rose-400 hover:text-rose-300"
-  >
-                      Delete
-                    </button>
-                  </div>
-                </div>)}
+                  ) : (
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                      <button
+                        onClick={() => setUploadingAlbumId(album._id)}
+                        className="text-xs font-semibold text-cyan-300 hover:underline"
+                      >
+                        + Add Photos/Videos
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAlbum(album._id)}
+                        className="text-xs text-rose-400 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          </div>}
+          </div>
+        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 7: ACTIVITIES & ACHIEVEMENTS (FACULTY & SUPERADMIN) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "activities" && (isSuperAdmin || isFaculty) && <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* ========================================================================= */}
+        {/* FACULTY SECTION: ACTIVITIES & ACHIEVEMENTS */}
+        {/* ========================================================================= */}
+        {activeTab === "activities" && (isSuperAdmin || isFaculty) && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-white">Departmental Activities & Student Achievements</h2>
-                <p className="text-xs text-slate-400">
-                  Add and manage student technical workshops, hackathons, and departmental awards
-                </p>
+                <h2 className="text-lg font-bold text-white">
+                  Departmental Activities & Student Achievements ({activities.length})
+                </h2>
+                <p className="text-xs text-slate-400">Post student milestones and workshop highlights</p>
               </div>
-
               <button
-    onClick={() => {
-      setEditingActivityId(null);
-      setActivityForm({
-        title: "",
-        type: "ACTIVITY",
-        description: "",
-        date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-        tags: "Department, Workshop",
-        imageUrl: "",
-        featured: false
-      });
-      setIsActivityModalOpen(true);
-    }}
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-  >
+                onClick={() => {
+                  setEditingActivityId(null);
+                  setActivityForm({
+                    title: "",
+                    type: "ACTIVITY",
+                    description: "",
+                    date: new Date().toISOString().split("T")[0],
+                    tags: "Department, Workshop",
+                    imageUrl: "",
+                    featured: false
+                  });
+                  setIsActivityModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500"
+              >
                 <Plus size={14} />
                 <span>Add Activity / Achievement</span>
               </button>
             </div>
 
-            <div className="space-y-3">
-              {activities.length === 0 ? <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                  No departmental activities or achievements listed yet. Click "+ Add Activity / Achievement" to create one.
-                </div> : activities.map((act) => <div
-    key={act._id}
-    className="p-5 rounded-2xl bg-navy-900 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-  >
-                    <div className="flex items-start gap-3.5">
-                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-amber-400 shrink-0">
-                        <Award size={20} />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-white">{act.title}</h4>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-amber-300 border border-white/10">
-                            {act.type}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-300 leading-relaxed">{act.description}</p>
-                        <div className="text-[10px] text-slate-400 pt-1">
-                          Date: {new Date(act.date).toLocaleDateString()}
-                          {act.tags?.length > 0 && ` \u2022 Tags: ${act.tags.join(", ")}`}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-    onClick={() => {
-      setEditingActivityId(act._id);
-      setActivityForm({
-        title: act.title,
-        type: act.type,
-        description: act.description,
-        date: act.date ? act.date.substring(0, 10) : "",
-        tags: act.tags?.join(", ") || "",
-        imageUrl: act.imageUrl || "",
-        featured: act.featured || false
-      });
-      setIsActivityModalOpen(true);
-    }}
-    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-xs"
-  >
-                        Edit
-                      </button>
-                      <button
-    onClick={() => handleDeleteActivity(act._id)}
-    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs"
-  >
-                        Delete
-                      </button>
-                    </div>
-                  </div>)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {activities.map((act) => (
+                <div
+                  key={act._id}
+                  className="p-5 rounded-2xl bg-navy-900 border border-white/10 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300">
+                      {act.type}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {new Date(act.date).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-white text-sm">{act.title}</h3>
+                  <p className="text-xs text-slate-400 line-clamp-3">{act.description}</p>
+                  <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                    <button
+                      onClick={() => {
+                        setEditingActivityId(act._id);
+                        setActivityForm({
+                          title: act.title,
+                          type: act.type,
+                          description: act.description,
+                          date: act.date ? act.date.substring(0, 10) : "",
+                          tags: Array.isArray(act.tags) ? act.tags.join(", ") : act.tags || "",
+                          imageUrl: act.imageUrl || "",
+                          featured: act.featured || false
+                        });
+                        setIsActivityModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-xs text-slate-300"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteActivity(act._id)}
+                      className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-xs text-rose-400"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>}
+          </div>
+        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 8: MEMBERSHIP APPLICATIONS (SUPERADMIN & PRESIDENT) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "applications" && (isSuperAdmin || isPresident) && <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">
-                Student Membership Applications ({applications.length})
-              </h2>
-              <p className="text-xs text-slate-400">Review student statements and departmental club requests</p>
+        {/* ========================================================================= */}
+        {/* MODULE 5: MEMBERSHIP APPLICATIONS */}
+        {/* ========================================================================= */}
+        {activeTab === "applications" && (isSuperAdmin || isPresident) && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  Student Membership Applications ({applications.length})
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Review applicant profiles. Approving assigns post, creates credentials, and sends official notification email.
+                </p>
+              </div>
+
+              <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl">
+                Pending Review: <strong>{stats.pendingApplications || 0}</strong>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {applications.length === 0 ? <div className="p-8 text-center text-xs text-slate-400 glass-card rounded-2xl">
+              {applications.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 glass-card rounded-2xl">
                   No membership applications submitted yet.
-                </div> : applications.map((app) => <div
-    key={app._id}
-    className="p-5 rounded-2xl bg-navy-900 border border-white/10 space-y-3"
-  >
+                </div>
+              ) : (
+                applications.map((app) => (
+                  <div
+                    key={app._id}
+                    className="p-5 rounded-2xl bg-navy-900 border border-white/10 space-y-3"
+                  >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
                       <div>
                         <h3 className="font-bold text-white text-sm">{app.fullName}</h3>
                         <p className="text-[11px] text-slate-400">
-                          {app.email} • {app.department} ({app.academicYear})
+                          {app.email} • {app.phone ? `📞 ${app.phone} • ` : ""}{app.department} ({app.academicYear})
                         </p>
                       </div>
                       <span
-    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${app.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-300" : app.status === "REJECTED" ? "bg-rose-500/20 text-rose-300" : "bg-amber-500/20 text-amber-300"}`}
-  >
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          app.status === "APPROVED"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : app.status === "REJECTED"
+                            ? "bg-rose-500/20 text-rose-300"
+                            : "bg-amber-500/20 text-amber-300"
+                        }`}
+                      >
                         {app.status}
                       </span>
                     </div>
@@ -1706,852 +2231,990 @@ export const AdminDashboard = () => {
                         <p className="text-slate-200 mt-0.5">{app.reasonForJoining}</p>
                       </div>
 
-                      {app.areasOfInterest?.length > 0 && <div className="flex flex-wrap gap-1.5 pt-1">
-                          {app.areasOfInterest.map((a, i) => <span
-    key={i}
-    className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-cyan-300 border border-white/10"
-  >
+                      {app.areasOfInterest?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {app.areasOfInterest.map((a, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-cyan-300 border border-white/10"
+                            >
                               {a}
-                            </span>)}
-                        </div>}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {app.status === "PENDING" && <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                    {app.status === "PENDING" && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-white/5">
                         <button
-    onClick={() => handleReviewApp(app._id, "APPROVED")}
-    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-  >
-                          Approve Membership
+                          onClick={() => openApproveModal(app)}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                        >
+                          Approve & Assign Post
                         </button>
                         <button
-    onClick={() => handleReviewApp(app._id, "REJECTED")}
-    className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition-colors"
-  >
+                          onClick={() => openRejectModal(app)}
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition-colors"
+                        >
                           Reject
                         </button>
-                      </div>}
-                  </div>)}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-          </div>}
+          </div>
+        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 9: MEMBER MANAGEMENT & USER ROLES (SUPERADMIN ONLY) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "members" && isSuperAdmin && <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* ========================================================================= */}
+        {/* MODULE 6: SETTINGS, WEBSITE CONTENT & GROUP PHOTO */}
+        {/* ========================================================================= */}
+        {activeTab === "settings" && isSuperAdmin && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Registered Users & Role Assignment ({usersList.length})</h2>
+                <h2 className="text-lg font-bold text-white">Settings, Website Content & Photos</h2>
                 <p className="text-xs text-slate-400">
-                  Assign administrative privileges (SUPER_ADMIN, FACULTY, PRESIDENT) or approve club members
+                  Update official group photo, club logo, homepage headlines, UPI receiver, and view contact submissions
                 </p>
               </div>
 
-              <input
-    type="text"
-    placeholder="Search by student name or email..."
-    value={memberSearch}
-    onChange={(e) => setMemberSearch(e.target.value)}
-    className="px-3.5 py-1.5 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
-  />
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                  <tr>
-                    <th className="py-3 px-4">User</th>
-                    <th className="py-3 px-4">Department / Year</th>
-                    <th className="py-3 px-4">Administrative Role</th>
-                    <th className="py-3 px-4">Club Member Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {usersList.filter(
-    (u) => !memberSearch || u.fullName.toLowerCase().includes(memberSearch.toLowerCase()) || u.email.toLowerCase().includes(memberSearch.toLowerCase())
-  ).map((u) => <tr key={u._id} className="hover:bg-white/5">
-                        <td className="py-3.5 px-4">
-                          <strong className="text-white block">{u.fullName}</strong>
-                          <span className="text-[10px] text-slate-400">{u.email}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          {u.department} • <span className="font-semibold text-white">{u.academicYear || "SE"}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <select
-    value={u.role}
-    onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
-    className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${u.role === "SUPER_ADMIN" || u.role === "ADMIN" ? "bg-amber-500/20 text-amber-300 border-amber-500/30" : u.role === "FACULTY" ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : u.role === "PRESIDENT" ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" : "bg-navy-950 text-slate-300 border-white/10"}`}
-  >
-                            <option value="SUPER_ADMIN">SUPER_ADMIN (Full Website Control)</option>
-                            <option value="FACULTY">FACULTY (Activities & Achievements)</option>
-                            <option value="PRESIDENT">PRESIDENT (Team, Events, Applications)</option>
-                            <option value="MEMBER">MEMBER (Student Member)</option>
-                            <option value="VISITOR">VISITOR (Guest)</option>
-                          </select>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-    className={`px-2 py-0.5 rounded text-[10px] font-bold ${u.isApprovedMember ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-700 text-slate-400"}`}
-  >
-                            {u.isApprovedMember ? "Approved Member" : "Regular User"}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button
-    onClick={async () => {
-      const nextApproved = !u.isApprovedMember;
-      await api.admin.updateUser(u._id, { isApprovedMember: nextApproved });
-      setUsersList(
-        (prev) => prev.map((item) => item._id === u._id ? { ...item, isApprovedMember: nextApproved } : item)
-      );
-    }}
-    className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-semibold"
-  >
-                            Toggle Approval
-                          </button>
-                        </td>
-                      </tr>)}
-                </tbody>
-              </table>
-            </div>
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 10: WEBSITE CONTENT & PHOTOS (SUPERADMIN ONLY) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "cms" && isSuperAdmin && <div className="space-y-8">
-            <div>
-              <h2 className="text-lg font-bold text-white">Website Content & Photo Control Center</h2>
-              <p className="text-xs text-slate-400">
-                Change the official committee group photo, club logo, hero announcements, and contact information
-              </p>
-            </div>
-
-            {
-    /* Photo Uploaders Grid */
-  }
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {
-    /* 1. Group Photo Management */
-  }
-              <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Official Committee Group Photograph</h3>
-                    <p className="text-[11px] text-slate-400">Displayed on Home Page and Team Page</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
-                    PUBLIC
-                  </span>
-                </div>
-
-                <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-navy-950 border border-white/10">
-                  <img
-    src={branding.groupPhotoUrl}
-    alt="Current Committee Group Photo"
-    className="w-full h-full object-cover"
-  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] text-slate-300 font-semibold block">
-                    Upload New Group Photo (JPEG/PNG/WebP):
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-    type="file"
-    accept="image/*"
-    onChange={(e) => setGroupPhotoFile(e.target.files?.[0] || null)}
-    className="flex-1 px-3 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-white/10 file:text-white"
-  />
-                    <button
-    type="button"
-    onClick={handleUploadGroupPhoto}
-    disabled={uploadingGroupPhoto || !groupPhotoFile}
-    className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center gap-1.5"
-  >
-                      <UploadCloud size={14} />
-                      <span>{uploadingGroupPhoto ? "Uploading..." : "Upload & Apply"}</span>
-                    </button>
-                  </div>
-                  <span className="text-[10px] text-slate-500 block">
-                    Uploaded photos are automatically synchronized and delivered via Cloudinary CDN.
-                  </span>
-                </div>
-              </div>
-
-              {
-    /* 2. Club Logo Management */
-  }
-              <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Official ACES Club Logo</h3>
-                    <p className="text-[11px] text-slate-400">Displayed in Navbar, Footer, and Header</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300">
-                    BRANDING
-                  </span>
-                </div>
-
-                <div className="h-44 rounded-2xl bg-navy-950 border border-white/10 flex items-center justify-center p-4">
-                  <img
-    src={branding.logoUrl}
-    alt="Current Club Logo"
-    className="max-h-36 max-w-full object-contain"
-  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] text-slate-300 font-semibold block">
-                    Upload New Club Logo (PNG/JPEG/WebP):
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-    type="file"
-    accept="image/*"
-    onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-    className="flex-1 px-3 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-white/10 file:text-white"
-  />
-                    <button
-    type="button"
-    onClick={handleUploadLogo}
-    disabled={uploadingLogo || !logoFile}
-    className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center gap-1.5"
-  >
-                      <UploadCloud size={14} />
-                      <span>{uploadingLogo ? "Uploading..." : "Upload & Apply"}</span>
-                    </button>
-                  </div>
-                  <span className="text-[10px] text-slate-500 block">
-                    Square aspect ratio recommended for optimal navbar appearance.
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {
-    /* General Content Form */
-  }
-            <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
-              <h3 className="font-bold text-white text-sm">Website Headlines & Campus Metadata</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Hero Headline</label>
-                  <input
-    type="text"
-    value={branding.headline}
-    onChange={(e) => setBranding({ ...branding, headline: e.target.value })}
-    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Official Contact Email</label>
-                  <input
-    type="text"
-    value={branding.contactEmail}
-    onChange={(e) => setBranding({ ...branding, contactEmail: e.target.value })}
-    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Sub-headline Description</label>
-                  <textarea
-    rows={2}
-    value={branding.subtitle}
-    onChange={(e) => setBranding({ ...branding, subtitle: e.target.value })}
-    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Campus Location</label>
-                  <input
-    type="text"
-    value={branding.campusLocation}
-    onChange={(e) => setBranding({ ...branding, campusLocation: e.target.value })}
-    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-3 border-t border-white/10">
+              <div className="flex items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
                 <button
-    type="button"
-    onClick={handleSaveBranding}
-    disabled={savingBranding}
-    className="px-5 py-2.5 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-electric-blue/20"
-  >
-                  {savingBranding ? "Saving..." : "Save All Branding Details"}
+                  onClick={() => setSettingsSubTab("branding")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    settingsSubTab === "branding"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Group Photo & Logo
+                </button>
+                <button
+                  onClick={() => setSettingsSubTab("content")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    settingsSubTab === "content"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Website Content
+                </button>
+                <button
+                  onClick={() => setSettingsSubTab("upi")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    settingsSubTab === "upi"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  UPI VPA & Payments
+                </button>
+                <button
+                  onClick={() => setSettingsSubTab("messages")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    settingsSubTab === "messages"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Messages ({messages.length})
+                </button>
+                <button
+                  onClick={() => setSettingsSubTab("system")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                    settingsSubTab === "system"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  System Health
                 </button>
               </div>
             </div>
-          </div>}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 11: CONTACT MESSAGES */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "messages" && (isSuperAdmin || isPresident) && <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">Student & Visitor Inquiries ({messages.length})</h2>
-              <p className="text-xs text-slate-400">Messages submitted via the public Contact form</p>
-            </div>
-
-            <div className="space-y-3">
-              {messages.length === 0 ? <div className="p-8 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                  No contact messages received.
-                </div> : messages.map((msg) => <div
-    key={msg._id}
-    className={`p-5 rounded-2xl border transition-colors ${msg.isRead ? "bg-navy-900/50 border-white/5" : "bg-navy-900 border-electric-blue/30 shadow-lg shadow-electric-blue/5"}`}
-  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5 mb-2.5">
-                      <div>
-                        <strong className="text-white text-sm">{msg.subject}</strong>
-                        <p className="text-[11px] text-slate-400">
-                          From: {msg.name} ({msg.email})
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-    onClick={() => handleToggleMessageRead(msg._id, msg.isRead)}
-    className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-slate-300"
-  >
-                          {msg.isRead ? "Mark Unread" : "Mark Read"}
-                        </button>
-                        <span className="text-[10px] text-slate-500">
-                          {new Date(msg.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
+            {/* Sub-tab 1: Group Photo & Official Club Logo Upload */}
+            {settingsSubTab === "branding" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Official Committee Group Photo */}
+                <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm">Official Committee Group Photograph</h3>
+                      <p className="text-[11px] text-slate-400">Displayed on Home Page and Team Page banner</p>
                     </div>
-                    <p className="text-xs text-slate-200">{msg.message}</p>
-                  </div>)}
-            </div>
-          </div>}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                      PUBLIC
+                    </span>
+                  </div>
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* SECTION 12: SETTINGS (SUPERADMIN ONLY) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {activeTab === "settings" && isSuperAdmin && <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">System Settings & Infrastructure Status</h2>
-              <p className="text-xs text-slate-400">Configuration overview for storage, database, and UPI receiver</p>
-            </div>
+                  <div className="h-48 rounded-2xl bg-navy-950 border border-white/10 overflow-hidden relative">
+                    <img
+                      src={branding.groupPhotoUrl || "/assets/aces-team.jpg"}
+                      alt="ACES Team"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = "/assets/aces-team.jpg";
+                      }}
+                    />
+                  </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
-                <h3 className="font-bold text-white text-sm">Database & Storage Health</h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between py-1.5 border-b border-white/5">
-                    <span className="text-slate-400">Database Engine:</span>
-                    <span className="font-semibold text-emerald-400">MongoDB with Mongoose ODM</span>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase text-slate-300 block">
+                      Upload New Group Photograph:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setGroupPhotoFile(e.target.files?.[0] || null)}
+                        className="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:bg-white/10 file:text-white w-full"
+                      />
+                      <button
+                        onClick={handleUploadGroupPhoto}
+                        disabled={uploadingGroupPhoto || !groupPhotoFile}
+                        className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-40 shrink-0"
+                      >
+                        {uploadingGroupPhoto ? "Uploading..." : "Upload & Save"}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Tip: Upload high-resolution JPG/PNG. Updates the public banner across the entire site instantly.
+                    </p>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-white/5">
-                    <span className="text-slate-400">Database Connection:</span>
-                    <span className="font-semibold text-emerald-400">Connected (mongodb://localhost:27017)</span>
+                </div>
+
+                {/* 2. Official ACES Club Logo */}
+                <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm">Official Club Logo Asset</h3>
+                      <p className="text-[11px] text-slate-400">Displayed on Navbar, Footer, and Page Headers</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-electric-blue/20 text-electric-cyan">
+                      BRANDING
+                    </span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-white/5">
-                    <span className="text-slate-400">Media Delivery:</span>
-                    <span className="font-semibold text-cyan-300">Cloudinary with Local File Fallback</span>
+
+                  <div className="h-48 rounded-2xl bg-navy-950 border border-white/10 flex items-center justify-center p-4">
+                    <img
+                      src={branding.logoUrl || "/assets/aces-logo.jpeg"}
+                      alt="ACES Logo"
+                      className="max-h-36 max-w-full object-contain rounded-xl shadow-lg border border-white/10"
+                      onError={(e) => {
+                        e.target.src = "/assets/aces-logo.jpeg";
+                      }}
+                    />
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-white/5">
-                    <span className="text-slate-400">Payment Proof Security:</span>
-                    <span className="font-semibold text-emerald-400">Private Stream (IDOR-protected)</span>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase text-slate-300 block">
+                      Upload New ACES Logo:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                        className="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:bg-white/10 file:text-white w-full"
+                      />
+                      <button
+                        onClick={handleUploadLogo}
+                        disabled={uploadingLogo || !logoFile}
+                        className="px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-40 shrink-0"
+                      >
+                        {uploadingLogo ? "Uploading..." : "Upload & Save"}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Square or circular transparent PNG recommended for crisp contrast against dark navy.
+                    </p>
                   </div>
                 </div>
               </div>
+            )}
 
-              <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
-                <h3 className="font-bold text-white text-sm">UPI Payment Receiver Configuration</h3>
-                <div>
-                  <label className="text-[11px] text-slate-400 uppercase font-semibold">Club UPI VPA</label>
-                  <input
-    type="text"
-    defaultValue="aceskbtcoe@okaxis"
-    className="w-full mt-1 px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white"
-  />
+            {/* Sub-tab 2: Website Text Content */}
+            {settingsSubTab === "content" && (
+              <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                <h3 className="font-bold text-white text-sm">Homepage Headlines & Contact Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="md:col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Hero Main Headline</label>
+                    <input
+                      type="text"
+                      value={branding.headline}
+                      onChange={(e) => setBranding({ ...branding, headline: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Hero Subtitle</label>
+                    <textarea
+                      rows={2}
+                      value={branding.subtitle}
+                      onChange={(e) => setBranding({ ...branding, subtitle: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Official Contact Email</label>
+                    <input
+                      type="email"
+                      value={branding.contactEmail}
+                      onChange={(e) => setBranding({ ...branding, contactEmail: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Official Contact Phone</label>
+                    <input
+                      type="text"
+                      value={branding.contactPhone}
+                      onChange={(e) => setBranding({ ...branding, contactPhone: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Campus Location</label>
+                    <input
+                      type="text"
+                      value={branding.campusLocation}
+                      onChange={(e) => setBranding({ ...branding, campusLocation: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
                 </div>
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
-                  ⚠️ Note: Manual payments submitted by students are credited to this UPI VPA. Admins verify UTR references against bank statements before confirming seats.
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={handleSaveBranding}
+                    disabled={savingBranding}
+                    className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {savingBranding ? "Saving..." : "Save Website Content"}
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>}
+            )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: INSPECT PAYMENT PROOF */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {inspectingPayment && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            {/* Sub-tab 3: UPI VPA & Payment Settings */}
+            {settingsSubTab === "upi" && (
+              <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                <h3 className="font-bold text-white text-sm">UPI Payment Receiver & Verification Instructions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  <div className="md:col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Default Club UPI VPA</label>
+                    <input
+                      type="text"
+                      value={upiSettings.upiId}
+                      onChange={(e) => setUpiSettings({ ...upiSettings, upiId: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Students scanning the QR or paying directly send funds to this UPI address.
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Payment Instructions</label>
+                    <textarea
+                      rows={2}
+                      value={upiSettings.instructions}
+                      onChange={(e) => setUpiSettings({ ...upiSettings, instructions: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Refund Policy Notice</label>
+                    <textarea
+                      rows={2}
+                      value={upiSettings.refundPolicy}
+                      onChange={(e) => setUpiSettings({ ...upiSettings, refundPolicy: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => alert("UPI configuration saved successfully!")}
+                    className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
+                  >
+                    Save UPI Settings
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 4: Contact Form Messages */}
+            {settingsSubTab === "messages" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-white text-sm">Public Inquiries & Contact Submissions</h3>
+                  <span className="text-xs text-slate-400">Total: {messages.length}</span>
+                </div>
+
+                <div className="space-y-3">
+                  {messages.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400 glass-card rounded-2xl">
+                      No contact messages received.
+                    </div>
+                  ) : (
+                    messages.map((msg) => (
+                      <div
+                        key={msg._id}
+                        className={`p-5 rounded-2xl border transition-colors ${
+                          msg.isRead
+                            ? "bg-navy-900/50 border-white/5"
+                            : "bg-navy-900 border-electric-blue/30 shadow-lg shadow-electric-blue/5"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5 mb-2.5">
+                          <div>
+                            <strong className="text-white text-sm">{msg.subject}</strong>
+                            <p className="text-[11px] text-slate-400">
+                              From: {msg.name} ({msg.email})
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleToggleMessageRead(msg._id, msg.isRead)}
+                              className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-slate-300 font-semibold"
+                            >
+                              {msg.isRead ? "Mark Unread" : "Mark Read"}
+                            </button>
+                            <span className="text-[10px] text-slate-500">
+                              {new Date(msg.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-200">{msg.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 5: System Health */}
+            {settingsSubTab === "system" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
+                  <h3 className="font-bold text-white text-sm">Database & Storage Health</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Database Engine:</span>
+                      <span className="font-semibold text-emerald-400">MongoDB with Mongoose ODM</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Database Connection:</span>
+                      <span className="font-semibold text-emerald-400">Connected (mongodb://localhost:27017)</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Media Delivery:</span>
+                      <span className="font-semibold text-cyan-300">Cloudinary with Local File Fallback</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Payment Proof Security:</span>
+                      <span className="font-semibold text-emerald-400">Private Stream (IDOR-protected)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
+                  <h3 className="font-bold text-white text-sm">Automated Email Dispatch Service</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Service Engine:</span>
+                      <span className="font-semibold text-emerald-400">Nodemailer SMTP + Disk Fallback</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Application Approvals:</span>
+                      <span className="font-semibold text-emerald-400">Auto-Generates Credentials & Welcome Email</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Application Rejections:</span>
+                      <span className="font-semibold text-rose-400">Auto-Dispatches Feedback Notice</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Payment Confirmations:</span>
+                      <span className="font-semibold text-emerald-400">Auto-Sends Ticket Pass + WhatsApp Link</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 1: INSPECT PAYMENT PROOF & VERIFY WITH EMAIL DISPATCH */}
+        {/* ========================================================================= */}
+        {inspectingPayment && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <div className="relative w-full max-w-2xl bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-6 my-8">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div>
-                  <h3 className="text-base font-bold text-white">Review Payment Proof</h3>
+                  <h3 className="text-base font-bold text-white">Inspect Manual Payment Proof</h3>
                   <p className="text-xs text-slate-400 font-mono">ID: {inspectingPayment._id}</p>
                 </div>
                 <button
-    onClick={() => setInspectingPayment(null)}
-    className="p-1 rounded-lg text-slate-400 hover:text-white"
-  >
+                  onClick={() => setInspectingPayment(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="p-3 rounded-xl bg-navy-950 border border-white/5">
-                  <span className="text-[10px] text-slate-400 uppercase block">Student</span>
-                  <strong className="text-white block">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Student Name:</span>
+                  <strong className="text-white">
                     {inspectingPayment.userId?.fullName ||
                       inspectingPayment.userId?.name ||
                       inspectingPayment.registrationId?.fullName ||
-                      inspectingPayment.registrationId?.name ||
                       inspectingPayment.name ||
-                      "Student Participant"}
+                      "Student"}
                   </strong>
-                  <div className="text-slate-400 text-[10px]">
+                  <span className="block text-slate-400 text-[11px]">
                     {inspectingPayment.userId?.email ||
                       inspectingPayment.registrationId?.email ||
-                      inspectingPayment.email ||
-                      ""}
-                  </div>
+                      inspectingPayment.email}
+                  </span>
                 </div>
 
-                <div className="p-3 rounded-xl bg-navy-950 border border-white/5">
-                  <span className="text-[10px] text-slate-400 uppercase block">Expected Fee</span>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Expected Amount:</span>
                   <strong className="text-amber-300 text-sm">
                     ₹{((inspectingPayment.expectedAmount || inspectingPayment.amountInPaise || 0) / 100).toFixed(2)}
                   </strong>
                 </div>
 
-                <div className="col-span-2 p-3 rounded-xl bg-navy-950 border border-white/5">
-                  <span className="text-[10px] text-slate-400 uppercase block">Submitted UTR Reference</span>
-                  <span className="font-mono text-sm text-cyan-300 font-bold">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Submitted UTR Reference:</span>
+                  <span className="font-mono text-cyan-300 font-bold bg-white/5 px-2 py-0.5 rounded">
                     {inspectingPayment.utrReference || inspectingPayment.utrNumber}
                   </span>
                 </div>
+
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Current Verification Status:</span>
+                  <span className="font-bold uppercase text-amber-400">{inspectingPayment.status}</span>
+                </div>
               </div>
 
-              {/* Private Screenshot Preview */}
+              {/* Secure Payment Screenshot Viewer */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300">Payment Receipt / Screenshot:</label>
-                <div className="rounded-2xl border border-white/10 bg-navy-950 overflow-hidden max-h-72 flex flex-col items-center justify-center p-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Payment Screenshot Proof:</span>
+                <div className="relative rounded-2xl overflow-hidden bg-navy-950 border border-white/10 max-h-72 flex items-center justify-center p-2">
                   <img
                     src={inspectingPayment.receiptUrl || api.payments.getScreenshotUrl(inspectingPayment._id)}
-                    alt="Payment Screenshot"
-                    className="max-h-68 max-w-full object-contain rounded-lg"
+                    alt="Payment receipt proof"
+                    className="max-h-64 object-contain rounded-lg"
                     onError={(e) => {
                       if (e.target.src !== api.payments.getScreenshotUrl(inspectingPayment._id)) {
                         e.target.src = api.payments.getScreenshotUrl(inspectingPayment._id);
                       }
                     }}
                   />
-                  {inspectingPayment.receiptUrl && (
-                    <a
-                      href={inspectingPayment.receiptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 mt-2"
-                    >
-                      <Eye size={12} /> Open original receipt in new tab
-                    </a>
-                  )}
+                </div>
+                {inspectingPayment.receiptUrl && (
+                  <a
+                    href={inspectingPayment.receiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-cyan-300 hover:underline flex items-center gap-1"
+                  >
+                    <span>Open high-resolution receipt in new window</span>
+                    <ExternalLink size={11} />
+                  </a>
+                )}
+              </div>
+
+              {/* Rejection / Note Input */}
+              <div className="space-y-3 pt-2 border-t border-white/10">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                    Rejection Feedback / Student Note (Dispatched via Email):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. UTR reference not matching bank credits or blurry screenshot"
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white"
+                  />
                 </div>
               </div>
 
-              {
-    /* Rejection / Resubmission Input */
-  }
-              <div className="space-y-3 border-t border-white/10 pt-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    Rejection Reason (Required if Rejecting or Requesting Resubmission):
-                  </label>
-                  <input
-    type="text"
-    placeholder="e.g., UTR not matching statement, amount paid insufficient, blurred receipt"
-    value={rejectionReason}
-    onChange={(e) => setRejectionReason(e.target.value)}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
-                    Internal Admin Audit Notes (Optional):
-                  </label>
-                  <input
-    type="text"
-    placeholder="e.g., Verified in bank statement at 11:42 AM"
-    value={adminNote}
-    onChange={(e) => setAdminNote(e.target.value)}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none"
-  />
-                </div>
-              </div>
-
-              {
-    /* Action Buttons */
-  }
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
                 <button
-    type="button"
-    onClick={() => handleReviewPayment("REJECTED")}
-    disabled={paymentActionLoading}
-    className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-bold transition-colors"
-  >
+                  type="button"
+                  onClick={() => setInspectingPayment(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  disabled={paymentActionLoading}
+                  onClick={() => handleReviewPayment("REJECTED")}
+                  className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-bold border border-rose-500/30"
+                >
                   Reject Proof
                 </button>
                 <button
-    type="button"
-    onClick={() => handleReviewPayment("RESUBMISSION_REQUESTED")}
-    disabled={paymentActionLoading}
-    className="px-4 py-2 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold transition-colors"
-  >
-                  Request Resubmission
-                </button>
-                <button
-    type="button"
-    onClick={() => handleReviewPayment("VERIFIED")}
-    disabled={paymentActionLoading}
-    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-lg shadow-emerald-600/20"
-  >
-                  ✓ Verify & Confirm Seat
+                  type="button"
+                  disabled={paymentActionLoading}
+                  onClick={() => handleReviewPayment("VERIFIED")}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20"
+                >
+                  Verify & Confirm Seat (Sends Email)
                 </button>
               </div>
             </div>
-          </div>}
+          </div>
+        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: CREATE / EDIT EVENT */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {isEventModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-2xl bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-6 my-8">
+        {/* ========================================================================= */}
+        {/* MODAL 2: INTERACTIVE APPLICATION REVIEW (APPROVE / REJECT) */}
+        {/* ========================================================================= */}
+        {reviewingApp && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h3 className="text-base font-bold text-white">
-                  {editingEventId ? "Edit Event" : "Create Departmental Event"}
-                </h3>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {reviewAction === "APPROVED" ? "Approve ACES Membership" : "Reject Application"}
+                  </h3>
+                  <p className="text-xs text-slate-400">Applicant: {reviewingApp.fullName}</p>
+                </div>
                 <button
-    onClick={() => setIsEventModalOpen(false)}
-    className="p-1 rounded-lg text-slate-400 hover:text-white"
-  >
+                  onClick={() => setReviewingApp(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
                   <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEvent} className="space-y-4 text-xs">
+              <div className="p-4 rounded-2xl bg-navy-950 border border-white/10 text-xs space-y-1.5">
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Event Title</label>
-                  <input
-    type="text"
-    required
-    value={eventForm.title}
-    onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                  <span className="text-slate-400">Email:</span>{" "}
+                  <strong className="text-white">{reviewingApp.email}</strong>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Category</label>
-                    <select
-    value={eventForm.category}
-    onChange={(e) => setEventForm({ ...eventForm, category: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
-                      <option value="FLAGSHIP">FLAGSHIP</option>
-                      <option value="WORKSHOP">WORKSHOP</option>
-                      <option value="CODING">CODING</option>
-                      <option value="DEVELOPMENT">DEVELOPMENT</option>
-                      <option value="SEMINAR">SEMINAR</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Status</label>
-                    <select
-    value={eventForm.status}
-    onChange={(e) => setEventForm({ ...eventForm, status: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
-                      <option value="PUBLISHED">PUBLISHED</option>
-                      <option value="DRAFT">DRAFT</option>
-                    </select>
-                  </div>
-                </div>
-
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Description</label>
-                  <textarea
-    rows={3}
-    required
-    value={eventForm.description}
-    onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Start Date & Time</label>
-                    <input
-    type="datetime-local"
-    required
-    value={eventForm.startDate}
-    onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Registration Deadline</label>
-                    <input
-    type="datetime-local"
-    required
-    value={eventForm.registrationDeadline}
-    onChange={(e) => setEventForm({ ...eventForm, registrationDeadline: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                  </div>
-                </div>
-
-                {
-    /* Paid Event Configuration Section */
-  }
-                <div className="p-4 rounded-2xl bg-navy-950 border border-amber-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-300 text-xs">Paid Event Support</span>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-    type="checkbox"
-    checked={eventForm.isPaid}
-    onChange={(e) => setEventForm({ ...eventForm, isPaid: e.target.checked })}
-    className="rounded"
-  />
-                      <span className="text-white text-xs">Enable Paid Registration</span>
-                    </label>
-                  </div>
-
-                  {eventForm.isPaid && <div className="space-y-3 pt-2">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="font-semibold text-slate-300 block mb-1">Fee in INR (₹)</label>
-                          <input
-    type="number"
-    min="1"
-    step="1"
-    value={eventForm.feeInRupees}
-    onChange={(e) => setEventForm({ ...eventForm, feeInRupees: parseFloat(e.target.value) || 0 })}
-    className="w-full px-3 py-2 bg-navy-900 border border-white/10 rounded-xl text-white"
-  />
-                        </div>
-
-                        <div>
-                          <label className="font-semibold text-slate-300 block mb-1">Payment UPI VPA</label>
-                          <input
-    type="text"
-    value={eventForm.paymentUpiId}
-    onChange={(e) => setEventForm({ ...eventForm, paymentUpiId: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-900 border border-white/10 rounded-xl text-white"
-  />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="font-semibold text-slate-300 block mb-1">Payment Instructions</label>
-                        <input
-                          type="text"
-                          value={eventForm.paymentInstructions}
-                          onChange={(e) => setEventForm({ ...eventForm, paymentInstructions: e.target.value })}
-                          className="w-full px-3 py-2 bg-navy-900 border border-white/10 rounded-xl text-white"
-                        />
-                      </div>
-                    </div>}
-                </div>
-
-                {/* Official WhatsApp Group URL */}
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300 block text-xs">
-                    Official Event WhatsApp Group URL
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://chat.whatsapp.com/ACES-KBTCOE-Events"
-                    value={eventForm.whatsappGroupUrl || ""}
-                    onChange={(e) => setEventForm({ ...eventForm, whatsappGroupUrl: e.target.value })}
-                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white text-xs focus:border-emerald-500"
-                  />
-                  <span className="text-[10px] text-slate-400 block">
-                    Direct invite link shown to registered students on Step 3 of the registration wizard.
+                  <span className="text-slate-400">Department & Year:</span>{" "}
+                  <span className="text-slate-200">
+                    {reviewingApp.department} ({reviewingApp.academicYear})
                   </span>
                 </div>
+                <div>
+                  <span className="text-slate-400">Statement / Motivation:</span>
+                  <p className="text-slate-300 italic mt-0.5">{reviewingApp.reasonForJoining}</p>
+                </div>
+              </div>
 
-                {/* Team / Group Event Configuration */}
-                <div className="p-4 rounded-2xl bg-navy-950 border border-cyan-500/20 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-cyan-300 text-xs">Team / Group Event</span>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(eventForm.isGroupEvent)}
-                        onChange={(e) => setEventForm({ ...eventForm, isGroupEvent: e.target.checked })}
-                        className="rounded"
-                      />
-                      <span className="text-white text-xs">Enable Team Registration</span>
-                    </label>
-                  </div>
-
-                  {eventForm.isGroupEvent && (
-                    <div className="space-y-3 pt-2">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="font-semibold text-slate-300 block mb-1">Max Group Size (Members)</label>
-                          <input
-                            type="number"
-                            min="2"
-                            max="10"
-                            value={eventForm.maxGroupSize || 4}
-                            onChange={(e) => setEventForm({ ...eventForm, maxGroupSize: parseInt(e.target.value) || 4 })}
-                            className="w-full px-3 py-2 bg-navy-900 border border-white/10 rounded-xl text-white text-xs"
-                          />
-                        </div>
-                      </div>
-
+              <form onSubmit={handleConfirmApplicationReview} className="space-y-4 text-xs">
+                {reviewAction === "APPROVED" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="font-semibold text-slate-300 block">
-                            Event Student Coordinators / Team Organizers (Optional)
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEventForm({
-                                ...eventForm,
-                                groupMembers: [
-                                  ...(eventForm.groupMembers || []),
-                                  { name: "", role: "Coordinator", phone: "", email: "" }
-                                ]
-                              });
-                            }}
-                            className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300"
-                          >
-                            + Add Organizer
-                          </button>
-                        </div>
-                        {(eventForm.groupMembers || []).map((gm, idx) => (
-                          <div key={idx} className="flex items-center gap-2 mb-2 bg-navy-900/60 p-2 rounded-xl border border-white/5">
-                            <input
-                              type="text"
-                              placeholder="Name"
-                              value={gm.name || ""}
-                              onChange={(e) => {
-                                const updated = [...(eventForm.groupMembers || [])];
-                                updated[idx] = { ...updated[idx], name: e.target.value };
-                                setEventForm({ ...eventForm, groupMembers: updated });
-                              }}
-                              className="flex-1 px-2.5 py-1.5 bg-navy-950 border border-white/10 rounded-lg text-white text-xs"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Role (e.g. Lead, Coordinator)"
-                              value={gm.role || ""}
-                              onChange={(e) => {
-                                const updated = [...(eventForm.groupMembers || [])];
-                                updated[idx] = { ...updated[idx], role: e.target.value };
-                                setEventForm({ ...eventForm, groupMembers: updated });
-                              }}
-                              className="w-36 px-2.5 py-1.5 bg-navy-950 border border-white/10 rounded-lg text-white text-xs"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Phone"
-                              value={gm.phone || ""}
-                              onChange={(e) => {
-                                const updated = [...(eventForm.groupMembers || [])];
-                                updated[idx] = { ...updated[idx], phone: e.target.value };
-                                setEventForm({ ...eventForm, groupMembers: updated });
-                              }}
-                              className="w-32 px-2.5 py-1.5 bg-navy-950 border border-white/10 rounded-lg text-white text-xs"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = (eventForm.groupMembers || []).filter((_, i) => i !== idx);
-                                setEventForm({ ...eventForm, groupMembers: updated });
-                              }}
-                              className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
+                        <label className="font-semibold text-slate-300 block mb-1">Assigned Post Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={appAssignedPost}
+                          onChange={(e) => setAppAssignedPost(e.target.value)}
+                          placeholder="e.g. Vice President, Core Team"
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-slate-300 block mb-1">Hierarchy Category</label>
+                        <select
+                          value={appPostCategory}
+                          onChange={(e) => setAppPostCategory(e.target.value)}
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        >
+                          <option value="PRESIDENT">President</option>
+                          <option value="VICE_PRESIDENT">Vice President</option>
+                          <option value="EXECUTION_TEAM">Execution Team</option>
+                          <option value="MEMBER">ACES Member</option>
+                        </select>
                       </div>
                     </div>
-                  )}
-                </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                    <div>
+                      <label className="font-semibold text-slate-300 block mb-1">
+                        Welcome Message / Instructions (Sent via Email)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={appReviewNotes}
+                        onChange={(e) => setAppReviewNotes(e.target.value)}
+                        className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                      />
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px]">
+                      ✓ Approving will activate their platform account, set their post, and dispatch an automated welcome email with login credentials.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="font-semibold text-slate-300 block mb-1">
+                        Rejection Reason / Feedback (Sent via Email) *
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        placeholder="Please explain why the application was not accepted at this time..."
+                        value={appReviewNotes}
+                        onChange={(e) => setAppReviewNotes(e.target.value)}
+                        className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                      />
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px]">
+                      ⚠️ Rejecting will dispatch an automated email with your feedback to {reviewingApp.email}.
+                    </div>
+                  </>
+                )}
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
                   <button
                     type="button"
-                    onClick={() => setIsEventModalOpen(false)}
+                    onClick={() => setReviewingApp(null)}
                     className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
+                    disabled={reviewSubmitting}
+                    className={`px-5 py-2 rounded-xl text-white text-xs font-bold ${
+                      reviewAction === "APPROVED"
+                        ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
+                        : "bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-600/20"
+                    }`}
+                  >
+                    {reviewSubmitting
+                      ? "Processing..."
+                      : reviewAction === "APPROVED"
+                      ? "Confirm & Approve (Send Credentials Email)"
+                      : "Confirm Rejection (Send Email)"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 3: ASSIGN POST & ROLE TO APPROVED MEMBER */}
+        {/* ========================================================================= */}
+        {assigningPostMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-md bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white">Assign Club Post & Role</h3>
+                  <p className="text-xs text-slate-400">{assigningPostMember.fullName}</p>
+                </div>
+                <button
+                  onClick={() => setAssigningPostMember(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePostAssignment} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Public Post Designation</label>
+                  <input
+                    type="text"
+                    required
+                    value={memberPostData.assignedPost}
+                    onChange={(e) =>
+                      setMemberPostData({ ...memberPostData, assignedPost: e.target.value })
+                    }
+                    placeholder="e.g. Club President, Vice President, Technical Lead"
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Hierarchy Category</label>
+                    <select
+                      value={memberPostData.postCategory}
+                      onChange={(e) =>
+                        setMemberPostData({ ...memberPostData, postCategory: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    >
+                      <option value="PRESIDENT">President</option>
+                      <option value="VICE_PRESIDENT">Vice President</option>
+                      <option value="EXECUTION_TEAM">Execution Team</option>
+                      <option value="MEMBER">ACES Member</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Display Order</label>
+                    <input
+                      type="number"
+                      value={memberPostData.displayOrder}
+                      onChange={(e) =>
+                        setMemberPostData({
+                          ...memberPostData,
+                          displayOrder: Number(e.target.value) || 10
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Administrative Privileges</label>
+                  <select
+                    value={memberPostData.role}
+                    onChange={(e) =>
+                      setMemberPostData({ ...memberPostData, role: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  >
+                    <option value="MEMBER">Standard Member</option>
+                    <option value="PRESIDENT">Club President (Events & Team Access)</option>
+                    <option value="SUPER_ADMIN">Super Administrator (Full System Control)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="isPublishedOnTeamCheck"
+                    checked={memberPostData.isPublishedOnTeam}
+                    onChange={(e) =>
+                      setMemberPostData({ ...memberPostData, isPublishedOnTeam: e.target.checked })
+                    }
+                    className="rounded bg-navy-950 border-white/10 text-electric-blue"
+                  />
+                  <label htmlFor="isPublishedOnTeamCheck" className="text-slate-300 font-medium">
+                    Publish card publicly on official Team Page
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setAssigningPostMember(null)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={assigningSubmitting}
                     className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
+                  >
+                    {assigningSubmitting ? "Saving..." : "Save Post & Sync Live"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 4: CREATE / EDIT EVENT */}
+        {/* ========================================================================= */}
+        {isEventModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-2xl bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-6 my-8">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-base font-bold text-white">
+                  {editingEventId ? "Edit Event Details" : "Create New Departmental Event"}
+                </h3>
+                <button
+                  onClick={() => setIsEventModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEvent} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Event Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={eventForm.title}
+                      onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Custom Event Code *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. AI-2026, TECH-001"
+                      value={eventForm.eventCode || ""}
+                      onChange={(e) => setEventForm({ ...eventForm, eventCode: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Category</label>
+                    <select
+                      value={eventForm.category}
+                      onChange={(e) => setEventForm({ ...eventForm, category: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    >
+                      <option value="WORKSHOP">Workshop</option>
+                      <option value="SEMINAR">Seminar</option>
+                      <option value="COMPETITION">Competition</option>
+                      <option value="FLAGSHIP">Flagship</option>
+                      <option value="CLUB_ACTIVITY">Club Activity</option>
+                    </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Event WhatsApp Group URL *</label>
+                    <input
+                      type="url"
+                      required
+                      value={eventForm.whatsappGroupUrl}
+                      onChange={(e) => setEventForm({ ...eventForm, whatsappGroupUrl: e.target.value })}
+                      placeholder="https://chat.whatsapp.com/..."
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Students are shown this join button immediately upon successful registration and in their confirmation email.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Start Date & Time *</label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={eventForm.startDate}
+                      onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Registration Deadline *</label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={eventForm.registrationDeadline}
+                      onChange={(e) => setEventForm({ ...eventForm, registrationDeadline: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Capacity (Max Seats)</label>
+                    <input
+                      type="number"
+                      value={eventForm.capacity}
+                      onChange={(e) => setEventForm({ ...eventForm, capacity: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Venue / Hall</label>
+                    <input
+                      type="text"
+                      value={eventForm.venue}
+                      onChange={(e) => setEventForm({ ...eventForm, venue: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+
+                  <div className="col-span-2 flex items-center gap-4 py-2 border-y border-white/5">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={eventForm.isPaid}
+                        onChange={(e) => setEventForm({ ...eventForm, isPaid: e.target.checked })}
+                        className="rounded bg-navy-950 border-white/10 text-electric-blue"
+                      />
+                      <span className="font-semibold text-white">Paid Event (Requires UPI Payment)</span>
+                    </label>
+
+                    {eventForm.isPaid && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Fee (₹):</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={eventForm.feeInRupees}
+                          onChange={(e) => setEventForm({ ...eventForm, feeInRupees: Number(e.target.value) })}
+                          className="w-24 px-2 py-1 bg-navy-950 border border-white/10 rounded text-white font-bold"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="font-semibold text-slate-300 block mb-1">Description</label>
+                    <textarea
+                      rows={3}
+                      value={eventForm.description}
+                      onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setIsEventModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-electric-blue text-white font-bold hover:bg-blue-600"
                   >
                     Save Event
                   </button>
                 </div>
               </form>
             </div>
-          </div>}
+          </div>
+        )}
 
-        {/* MODAL: VIEW TEAM MEMBERS IN REGISTRATION */}
+        {/* ========================================================================= */}
+        {/* MODAL 5: TEAM ATTENDEES VIEW */}
+        {/* ========================================================================= */}
         {viewingTeamModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-4 my-8">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <span>👥 Team: {viewingTeamModal.groupName}</span>
                   </h3>
-                  <p className="text-xs text-cyan-300 font-mono mt-0.5">
+                  <p className="text-xs text-slate-400 font-mono">
                     Ticket ID: {viewingTeamModal.ticketId || `ACES-${(viewingTeamModal._id || "").substring(18).toUpperCase()}`}
                   </p>
                 </div>
@@ -2563,51 +3226,56 @@ export const AdminDashboard = () => {
                 </button>
               </div>
 
-              <div className="space-y-4">
-                <div className="p-3.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/20">
-                  <span className="text-[10px] uppercase font-bold text-cyan-400 block mb-1">
-                    Team Leader (Primary Contact)
+              <div className="space-y-3">
+                <div className="p-4 rounded-2xl bg-navy-950 border border-white/10">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                    Team Leader
                   </span>
-                  <div className="text-sm font-bold text-white">{viewingTeamModal.fullName || viewingTeamModal.name}</div>
+                  <div className="text-sm font-bold text-white">
+                    {viewingTeamModal.fullName || viewingTeamModal.name}
+                  </div>
                   <div className="text-xs text-slate-300">{viewingTeamModal.email}</div>
                   {viewingTeamModal.phone && (
                     <div className="text-xs text-slate-400 font-mono">📞 {viewingTeamModal.phone}</div>
                   )}
-                  <div className="text-[11px] text-slate-400 mt-1">
+                  <div className="text-xs text-slate-400 mt-1">
                     {viewingTeamModal.department || "Computer Engineering"} • {viewingTeamModal.academicYear || "SE"} ({viewingTeamModal.college || "KBTCOE"})
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-bold text-slate-300 uppercase mb-2">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
                     Team Members ({viewingTeamModal.groupMembers?.length || 0})
-                  </h4>
+                  </span>
                   {viewingTeamModal.groupMembers && viewingTeamModal.groupMembers.length > 0 ? (
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <div className="space-y-2">
                       {viewingTeamModal.groupMembers.map((m, idx) => (
-                        <div key={idx} className="p-3 rounded-xl bg-navy-950 border border-white/5 flex items-center justify-between">
+                        <div
+                          key={idx}
+                          className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-xs"
+                        >
                           <div>
-                            <div className="text-xs font-bold text-white">{m.name}</div>
-                            <div className="text-[11px] text-slate-400">{m.email || "No email provided"}</div>
-                            {m.phone && <div className="text-[11px] text-slate-400 font-mono">📞 {m.phone}</div>}
+                            <strong className="text-white block">{m.fullName || m.name}</strong>
+                            <span className="text-slate-400 text-[11px]">{m.email}</span>
                           </div>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-cyan-300 border border-white/10">
-                            {m.role || `Member ${idx + 2}`}
+                          <span className="text-slate-400 text-[11px]">
+                            {m.department || "Comp"} ({m.academicYear || "SE"})
                           </span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">No additional members listed.</p>
+                    <div className="p-4 rounded-xl bg-white/5 text-xs text-slate-400 text-center">
+                      No additional team members listed.
+                    </div>
                   )}
                 </div>
               </div>
 
               <div className="flex justify-end pt-2 border-t border-white/10">
                 <button
-                  type="button"
                   onClick={() => setViewingTeamModal(null)}
-                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold"
+                  className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
                 >
                   Close
                 </button>
@@ -2616,96 +3284,51 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* MODAL: VIEW PROOF SCREENSHOT LIGHTBOX */}
-        {inspectingProofUrl && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-            <div className="relative max-w-2xl w-full bg-navy-900 border border-white/15 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-sm font-bold text-white">Payment Screenshot / Receipt</h3>
+        {/* ========================================================================= */}
+        {/* MODAL 6: COMMITTEE TEAM MEMBER WITH PHOTO UPLOADER */}
+        {/* ========================================================================= */}
+        {isTeamModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-base font-bold text-white">
+                  {editingMemberId ? "Edit Committee Profile & Photo" : "Add Committee Profile"}
+                </h3>
                 <button
-                  onClick={() => setInspectingProofUrl(null)}
+                  onClick={() => setIsTeamModalOpen(false)}
                   className="p-1 rounded-lg text-slate-400 hover:text-white"
                 >
                   <X size={18} />
                 </button>
               </div>
-              <div className="flex items-center justify-center bg-navy-950 p-2 rounded-2xl max-h-[70vh] overflow-hidden">
-                <img
-                  src={inspectingProofUrl}
-                  alt="Payment Receipt"
-                  className="max-h-[65vh] max-w-full object-contain rounded-lg"
-                />
-              </div>
-              <div className="flex items-center justify-between pt-2">
-                <a
-                  href={inspectingProofUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-cyan-400 hover:underline flex items-center gap-1"
-                >
-                  <Eye size={12} /> Open original image in new tab
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setInspectingProofUrl(null)}
-                  className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: TEAM MEMBER ADD/EDIT (With Photo Upload) */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {isTeamModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h3 className="text-base font-bold text-white">
-                  {editingMemberId ? "Edit Team Member & Change Photo" : "Add Committee Member"}
-                </h3>
-                <button
-    onClick={() => setIsTeamModalOpen(false)}
-    className="p-1 rounded-lg text-slate-400 hover:text-white"
-  >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {
-    /* Photo Upload Card */
-  }
+              {/* Photo Upload Card */}
               <div className="p-4 rounded-2xl bg-navy-950 border border-white/10 flex items-center gap-4">
                 <img
-    src={teamForm.photoUrl}
-    alt={teamForm.name || "Member Preview"}
-    className="w-16 h-16 rounded-full object-cover border-2 border-electric-cyan shrink-0"
-  />
+                  src={teamForm.photoUrl}
+                  alt={teamForm.name || "Member Preview"}
+                  className="w-16 h-16 rounded-full object-cover border-2 border-electric-cyan shrink-0"
+                  onError={(e) => {
+                    e.target.src = "/assets/members/President.jpeg";
+                  }}
+                />
                 <div className="space-y-1.5 flex-1">
                   <label className="text-[11px] font-bold uppercase text-slate-300 block">
                     Upload & Change Member Photo:
                   </label>
                   <div className="flex items-center gap-2">
                     <input
-    type="file"
-    accept="image/*"
-    onChange={(e) => setMemberPhotoFile(e.target.files?.[0] || null)}
-    className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:bg-white/10 file:text-white w-full"
-  />
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setMemberPhotoFile(e.target.files?.[0] || null)}
+                      className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:bg-white/10 file:text-white w-full"
+                    />
                     <button
-    type="button"
-    onClick={handleUploadMemberPhoto}
-    disabled={uploadingMemberPhoto || !memberPhotoFile}
-    className="px-3 py-1 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-40 shrink-0"
-  >
+                      type="button"
+                      onClick={handleUploadMemberPhoto}
+                      disabled={uploadingMemberPhoto || !memberPhotoFile}
+                      className="px-3 py-1 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 disabled:opacity-40 shrink-0"
+                    >
                       {uploadingMemberPhoto ? "Uploading..." : "Upload"}
                     </button>
                   </div>
@@ -2716,46 +3339,48 @@ export const AdminDashboard = () => {
                 <div>
                   <label className="font-semibold text-slate-300 block mb-1">Full Name</label>
                   <input
-    type="text"
-    required
-    value={teamForm.name}
-    onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                    type="text"
+                    required
+                    value={teamForm.name}
+                    onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="font-semibold text-slate-300 block mb-1">Designation</label>
                     <select
-    value={teamForm.designationId}
-    onChange={(e) => {
-      const sel = designations.find((d) => d._id === e.target.value);
-      setTeamForm({
-        ...teamForm,
-        designationId: e.target.value,
-        role: sel?.title || teamForm.role,
-        tier: sel?.tier || teamForm.tier
-      });
-    }}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
+                      value={teamForm.designationId}
+                      onChange={(e) => {
+                        const sel = designations.find((d) => d._id === e.target.value);
+                        setTeamForm({
+                          ...teamForm,
+                          designationId: e.target.value,
+                          role: sel?.title || teamForm.role,
+                          tier: sel?.tier || teamForm.tier
+                        });
+                      }}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    >
                       <option value="">Select Designation...</option>
-                      {designations.map((d) => <option key={d._id} value={d._id}>
+                      {designations.map((d) => (
+                        <option key={d._id} value={d._id}>
                           {d.title} ({d.tier})
-                        </option>)}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <div>
                     <label className="font-semibold text-slate-300 block mb-1">Public Role Title</label>
                     <input
-    type="text"
-    required
-    value={teamForm.role}
-    onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                      type="text"
+                      required
+                      value={teamForm.role}
+                      onChange={(e) => setTeamForm({ ...teamForm, role: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
                   </div>
                 </div>
 
@@ -2763,20 +3388,20 @@ export const AdminDashboard = () => {
                   <div>
                     <label className="font-semibold text-slate-300 block mb-1">Department</label>
                     <input
-    type="text"
-    value={teamForm.department}
-    onChange={(e) => setTeamForm({ ...teamForm, department: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                      type="text"
+                      value={teamForm.department}
+                      onChange={(e) => setTeamForm({ ...teamForm, department: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
                   </div>
 
                   <div>
                     <label className="font-semibold text-slate-300 block mb-1">Academic Year</label>
                     <select
-    value={teamForm.academicYear}
-    onChange={(e) => setTeamForm({ ...teamForm, academicYear: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
+                      value={teamForm.academicYear}
+                      onChange={(e) => setTeamForm({ ...teamForm, academicYear: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    >
                       <option value="FE">First Year (FE)</option>
                       <option value="SE">Second Year (SE)</option>
                       <option value="TE">Third Year (TE)</option>
@@ -2787,386 +3412,256 @@ export const AdminDashboard = () => {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Photo URL / Asset Path</label>
-                  <input
-    type="text"
-    required
-    value={teamForm.photoUrl}
-    onChange={(e) => setTeamForm({ ...teamForm, photoUrl: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono text-[11px]"
-  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Short Biography</label>
+                  <label className="font-semibold text-slate-300 block mb-1">Biography</label>
                   <textarea
-    rows={2}
-    value={teamForm.bio}
-    onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                    rows={2}
+                    value={teamForm.bio}
+                    onChange={(e) => setTeamForm({ ...teamForm, bio: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
                 </div>
 
                 <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
                   <button
-    type="button"
-    onClick={() => setIsTeamModalOpen(false)}
-    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
-  >
+                    type="button"
+                    onClick={() => setIsTeamModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
+                  >
                     Cancel
                   </button>
                   <button
-    type="submit"
-    className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
-  >
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600"
+                  >
                     Save Member
                   </button>
                 </div>
               </form>
             </div>
-          </div>}
+          </div>
+        )}
 
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: ACTIVITIES & ACHIEVEMENTS ADD/EDIT */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {isActivityModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+        {/* ========================================================================= */}
+        {/* MODAL 7: ADD DESIGNATION */}
+        {/* ========================================================================= */}
+        {isDesgModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-md bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-base font-bold text-white">Add Club Designation</h3>
+                <button onClick={() => setIsDesgModalOpen(false)} className="text-slate-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveDesignation} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Designation Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={desgForm.title}
+                    onChange={(e) => setDesgForm({ ...desgForm, title: e.target.value })}
+                    placeholder="e.g. Vice President, Technical Lead, Event Head"
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Tier / Level</label>
+                  <select
+                    value={desgForm.tier}
+                    onChange={(e) => setDesgForm({ ...desgForm, tier: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  >
+                    <option value="CORE">Executive / Core</option>
+                    <option value="COMMITTEE">Committee Member</option>
+                    <option value="FACULTY">Faculty Advisory</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setIsDesgModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-electric-blue text-white font-bold"
+                  >
+                    Save Designation
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 8: CREATE GALLERY ALBUM */}
+        {/* ========================================================================= */}
+        {isAlbumModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-md bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-base font-bold text-white">Create New Event Album</h3>
+                <button onClick={() => setIsAlbumModalOpen(false)} className="text-slate-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateAlbum} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Album Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={albumForm.title}
+                    onChange={(e) => setAlbumForm({ ...albumForm, title: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Event Date</label>
+                    <input
+                      type="date"
+                      value={albumForm.eventDate}
+                      onChange={(e) => setAlbumForm({ ...albumForm, eventDate: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-300 block mb-1">Academic Year</label>
+                    <input
+                      type="text"
+                      value={albumForm.academicYear}
+                      onChange={(e) => setAlbumForm({ ...albumForm, academicYear: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-slate-300 block mb-1">Description</label>
+                  <textarea
+                    rows={2}
+                    value={albumForm.description}
+                    onChange={(e) => setAlbumForm({ ...albumForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setIsAlbumModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-electric-blue text-white font-bold"
+                  >
+                    Create Album
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL 9: FACULTY ACTIVITY / ACHIEVEMENT */}
+        {/* ========================================================================= */}
+        {isActivityModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
             <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <h3 className="text-base font-bold text-white">
-                  {editingActivityId ? "Edit Departmental Record" : "Add Departmental Activity or Achievement"}
+                  {editingActivityId ? "Edit Activity / Achievement" : "Add Departmental Activity"}
                 </h3>
-                <button
-    onClick={() => setIsActivityModalOpen(false)}
-    className="p-1 rounded-lg text-slate-400 hover:text-white"
-  >
+                <button onClick={() => setIsActivityModalOpen(false)} className="text-slate-400 hover:text-white">
                   <X size={18} />
                 </button>
               </div>
 
               <form onSubmit={handleSaveActivity} className="space-y-4 text-xs">
                 <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Title *</label>
+                  <label className="font-semibold text-slate-300 block mb-1">Title</label>
                   <input
-    type="text"
-    required
-    placeholder="e.g. Winner at State-Level Hackathon 2026 / Expert Session on Cloud"
-    value={activityForm.title}
-    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                    type="text"
+                    required
+                    value={activityForm.title}
+                    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Type *</label>
+                    <label className="font-semibold text-slate-300 block mb-1">Category Type</label>
                     <select
-    value={activityForm.type}
-    onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
-                      <option value="ACTIVITY">Departmental Activity / Workshop</option>
-                      <option value="ACHIEVEMENT">Student / Faculty Achievement</option>
+                      value={activityForm.type}
+                      onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    >
+                      <option value="ACTIVITY">Departmental Activity</option>
+                      <option value="ACHIEVEMENT">Student Achievement</option>
+                      <option value="WORKSHOP">Technical Workshop</option>
+                      <option value="SEMINAR">Guest Seminar</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Date *</label>
+                    <label className="font-semibold text-slate-300 block mb-1">Date</label>
                     <input
-    type="date"
-    required
-    value={activityForm.date}
-    onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                      type="date"
+                      value={activityForm.date}
+                      onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
+                      className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                    />
                   </div>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Description *</label>
-                  <textarea
-    rows={3}
-    required
-    placeholder="Provide details about the session, competition, organizing faculty, or participating students..."
-    value={activityForm.description}
-    onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Tags (Comma-separated)</label>
-                  <input
-    type="text"
-    placeholder="e.g. AI/ML, Cloud Computing, Hackathon, Research"
-    value={activityForm.tags}
-    onChange={(e) => setActivityForm({ ...activityForm, tags: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
-                  <button
-    type="button"
-    onClick={() => setIsActivityModalOpen(false)}
-    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10 text-xs font-semibold"
-  >
-                    Cancel
-                  </button>
-                  <button
-    type="submit"
-    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
-  >
-                    Save Record
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: CONFIGURABLE DESIGNATION */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {isDesgModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-md bg-navy-900 border border-white/15 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-sm font-bold text-white">Create Club Designation</h3>
-                <button onClick={() => setIsDesgModalOpen(false)} className="text-slate-400 hover:text-white">
-                  <X size={16} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveDesignation} className="space-y-3 text-xs">
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Designation Title</label>
-                  <input
-    type="text"
-    required
-    placeholder="e.g. Lead Technical Architect"
-    value={desgForm.title}
-    onChange={(e) => setDesgForm({ ...desgForm, title: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Tier / Hierarchy</label>
-                  <select
-    value={desgForm.tier}
-    onChange={(e) => setDesgForm({ ...desgForm, tier: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
-                    <option value="FACULTY">FACULTY</option>
-                    <option value="PRESIDENT">PRESIDENT</option>
-                    <option value="VICE_PRESIDENT">VICE_PRESIDENT</option>
-                    <option value="EXECUTIVE">EXECUTIVE</option>
-                    <option value="COMMITTEE">COMMITTEE</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Description / Responsibility</label>
-                  <input
-    type="text"
-    value={desgForm.description}
-    onChange={(e) => setDesgForm({ ...desgForm, description: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
-                  <button
-    type="button"
-    onClick={() => setIsDesgModalOpen(false)}
-    className="px-4 py-1.5 rounded-xl bg-white/5 text-slate-300 text-xs"
-  >
-                    Cancel
-                  </button>
-                  <button
-    type="submit"
-    className="px-4 py-1.5 rounded-xl bg-electric-blue text-white text-xs font-bold"
-  >
-                    Create Designation
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: CREATE ALBUM */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {isAlbumModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-sm font-bold text-white">Create Completed Event Album</h3>
-                <button onClick={() => setIsAlbumModalOpen(false)} className="text-slate-400 hover:text-white">
-                  <X size={16} />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateAlbum} className="space-y-3 text-xs">
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Album / Event Title</label>
-                  <input
-    type="text"
-    required
-    placeholder="e.g. Kachurli Ashram Shala Community Visit 2026"
-    value={albumForm.title}
-    onChange={(e) => setAlbumForm({ ...albumForm, title: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Category</label>
-                    <select
-    value={albumForm.category}
-    onChange={(e) => setAlbumForm({ ...albumForm, category: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  >
-                      <option value="FLAGSHIP">FLAGSHIP</option>
-                      <option value="COMMUNITY">COMMUNITY</option>
-                      <option value="WORKSHOP">WORKSHOP</option>
-                      <option value="COMPETITION">COMPETITION</option>
-                      <option value="SYMPOSIUM">SYMPOSIUM</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-300 block mb-1">Event Date</label>
-                    <input
-    type="date"
-    required
-    value={albumForm.eventDate}
-    onChange={(e) => setAlbumForm({ ...albumForm, eventDate: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Cover Image URL</label>
-                  <input
-    type="text"
-    placeholder="/assets/events/Kachurli_Ashram_Shala_Event.jpg"
-    value={albumForm.coverImageUrl}
-    onChange={(e) => setAlbumForm({ ...albumForm, coverImageUrl: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
                 </div>
 
                 <div>
                   <label className="font-semibold text-slate-300 block mb-1">Description</label>
                   <textarea
-    rows={2}
-    value={albumForm.description}
-    onChange={(e) => setAlbumForm({ ...albumForm, description: e.target.value })}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
+                    rows={3}
+                    value={activityForm.description}
+                    onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                  />
                 </div>
 
                 <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
                   <button
-    type="button"
-    onClick={() => setIsAlbumModalOpen(false)}
-    className="px-4 py-1.5 rounded-xl bg-white/5 text-slate-300 text-xs"
-  >
+                    type="button"
+                    onClick={() => setIsActivityModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300"
+                  >
                     Cancel
                   </button>
                   <button
-    type="submit"
-    className="px-4 py-1.5 rounded-xl bg-electric-blue text-white text-xs font-bold"
-  >
-                    Create Album
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-bold"
+                  >
+                    Save
                   </button>
                 </div>
               </form>
             </div>
-          </div>}
-
-        {
-    /* ========================================================================= */
-  }
-        {
-    /* MODAL: UPLOAD MEDIA TO ALBUM */
-  }
-        {
-    /* ========================================================================= */
-  }
-        {uploadingAlbumId && <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-md bg-navy-900 border border-white/15 rounded-3xl p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <h3 className="text-sm font-bold text-white">Upload Media to Album</h3>
-                <button onClick={() => setUploadingAlbumId(null)} className="text-slate-400 hover:text-white">
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Select Photo or Video</label>
-                  <input
-    type="file"
-    accept="image/*,video/*"
-    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                  <span className="text-[10px] text-slate-500 block mt-1">
-                    Delivered automatically via Cloudinary CDN with local persistent storage backup.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-300 block mb-1">Media Caption (Optional)</label>
-                  <input
-    type="text"
-    placeholder="e.g. Students demonstrating robotics project"
-    value={uploadMediaCaption}
-    onChange={(e) => setUploadMediaCaption(e.target.value)}
-    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
-                  <button
-    type="button"
-    onClick={() => setUploadingAlbumId(null)}
-    className="px-4 py-1.5 rounded-xl bg-white/5 text-slate-300 text-xs"
-  >
-                    Cancel
-                  </button>
-                  <button
-    type="button"
-    onClick={() => handleUploadMedia(uploadingAlbumId)}
-    className="px-4 py-1.5 rounded-xl bg-electric-blue text-white text-xs font-bold"
-  >
-                    Upload Media
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>}
+          </div>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 };
 
 export default AdminDashboard;

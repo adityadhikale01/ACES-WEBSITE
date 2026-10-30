@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from './userModel.js';
+import TeamMember from '../team/teamModel.js';
+import { saveUploadedFile } from '../../utils/fileStorage.js';
 import { AppError } from '../../utils/AppError.js';
 
 const generateToken = (user) => {
@@ -128,4 +130,140 @@ export const refresh = async (req, res, next) => {
   } catch {
     return next(new AppError('Invalid token', 401));
   }
+};
+
+export const updateProfile = async (req, res, next) => {
+  const user = await User.findById(req.userId);
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  const {
+    name,
+    fullName,
+    phone,
+    department,
+    academicYear,
+    bio,
+    linkedinUrl,
+    githubUrl,
+    photoUrl,
+    currentPassword,
+    newPassword,
+  } = req.body;
+
+  if (name || fullName) user.name = fullName || name;
+  if (phone !== undefined) user.phone = phone;
+  if (department) user.department = department;
+  if (academicYear) user.academicYear = academicYear;
+  if (bio !== undefined) user.bio = bio;
+  if (linkedinUrl !== undefined) user.linkedinUrl = linkedinUrl;
+  if (githubUrl !== undefined) user.githubUrl = githubUrl;
+  if (photoUrl) user.photoUrl = photoUrl;
+
+  // Optional password change
+  if (newPassword) {
+    if (!currentPassword) {
+      return next(new AppError('Current password is required to set a new password', 400));
+    }
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return next(new AppError('Current password does not match', 400));
+    }
+    if (newPassword.length < 6) {
+      return next(new AppError('New password must be at least 6 characters', 400));
+    }
+    const salt = await bcrypt.genSalt(10);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+  }
+
+  await user.save();
+
+  // Keep TeamMember synced if user is also listed in team
+  try {
+    await TeamMember.updateMany(
+      { $or: [{ email: user.email }, { name: user.name }] },
+      {
+        name: user.name,
+        photoUrl: user.photoUrl,
+        bio: user.bio,
+        linkedinUrl: user.linkedinUrl,
+        githubUrl: user.githubUrl,
+        department: user.department,
+        academicYear: user.academicYear,
+      }
+    );
+  } catch (err) {
+    // non-fatal
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Profile updated successfully!',
+    user: user.toSafeObject(),
+  });
+};
+
+export const uploadProfilePhoto = async (req, res, next) => {
+  const file = req.file || (req.files && req.files[0]);
+  if (!file) {
+    return next(new AppError('Please select an image file to upload', 400));
+  }
+
+  const user = await User.findById(req.userId);
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  try {
+    const customFilename = `member_${user._id}_${Date.now()}`;
+    const photoUrl = await saveUploadedFile(file, 'members', customFilename);
+
+    user.photoUrl = photoUrl;
+    await user.save();
+
+    // Sync to TeamMember
+    await TeamMember.updateMany(
+      { $or: [{ email: user.email }, { name: user.name }] },
+      { photoUrl }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile photo updated successfully!',
+      photoUrl,
+      user: user.toSafeObject(),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return next(new AppError('Both current password and new password are required', 400));
+  }
+  if (newPassword.length < 6) {
+    return next(new AppError('New password must be at least 6 characters long', 400));
+  }
+
+  const user = await User.findById(req.userId);
+  if (!user) {
+    return next(new AppError('User not found', 404));
+  }
+
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) {
+    return next(new AppError('Current password is incorrect', 400));
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  user.passwordHash = await bcrypt.hash(newPassword, salt);
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password changed successfully',
+  });
 };

@@ -1,5 +1,8 @@
+import bcrypt from 'bcryptjs';
 import MembershipApplication from './membershipModel.js';
 import User from '../auth/userModel.js';
+import TeamMember from '../team/teamModel.js';
+import { sendMembershipStatusEmail } from '../../utils/emailService.js';
 import { AppError } from '../../utils/AppError.js';
 
 export const submitApplication = async (req, res, next) => {
@@ -80,7 +83,7 @@ export const getAllApplications = async (req, res) => {
 
 export const reviewApplication = async (req, res, next) => {
   const { id } = req.params;
-  const { status, adminNotes, reviewerNotes } = req.body;
+  const { status, adminNotes, reviewerNotes, assignedPost, postCategory, displayOrder } = req.body;
 
   const application = await MembershipApplication.findById(id);
   if (!application) {
@@ -96,12 +99,89 @@ export const reviewApplication = async (req, res, next) => {
   application.reviewedAt = new Date();
   await application.save();
 
-  // If approved, update user's isApprovedMember to true!
+  // If approved: assign post, create/activate platform user account, and email credentials
   if (normalizedStatus === 'APPROVED') {
-    await User.findOneAndUpdate(
+    const post = assignedPost || 'ACES Member';
+    const cat = postCategory || (post.toUpperCase().includes('PRESIDENT') && !post.toUpperCase().includes('VICE') ? 'PRESIDENT' : post.toUpperCase().includes('VICE') ? 'VICE_PRESIDENT' : 'MEMBER');
+    const order = Number(displayOrder) || (cat === 'PRESIDENT' ? 1 : cat === 'VICE_PRESIDENT' ? 2 : cat === 'EXECUTION_TEAM' ? 10 : 50);
+
+    let user = await User.findOne({ email: application.email.toLowerCase() });
+    let tempPassword = null;
+
+    if (user) {
+      user.isApprovedMember = true;
+      user.assignedPost = post;
+      user.postCategory = cat;
+      user.displayOrder = order;
+      user.isPublishedOnTeam = true;
+      if (['PRESIDENT', 'VICE_PRESIDENT'].includes(cat)) {
+        user.role = cat;
+      } else if (user.role === 'VISITOR') {
+        user.role = 'MEMBER';
+      }
+      await user.save();
+    } else {
+      tempPassword = `Aces@${Math.floor(1000 + Math.random() * 9000)}`;
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(tempPassword, salt);
+
+      user = await User.create({
+        name: application.fullName,
+        email: application.email.toLowerCase(),
+        passwordHash,
+        role: ['PRESIDENT', 'VICE_PRESIDENT'].includes(cat) ? cat : 'MEMBER',
+        department: application.department || 'Computer Engineering',
+        academicYear: application.academicYear || 'SE',
+        prn: application.prn || '',
+        phone: application.phone || '',
+        assignedPost: post,
+        postCategory: cat,
+        displayOrder: order,
+        isApprovedMember: true,
+        isActive: true,
+        isPublishedOnTeam: true,
+        photoUrl: '/assets/aces-team.jpg',
+      });
+    }
+
+    // Sync to TeamMember
+    await TeamMember.findOneAndUpdate(
       { email: application.email.toLowerCase() },
-      { isApprovedMember: true, role: 'MEMBER' }
+      {
+        name: application.fullName,
+        email: application.email.toLowerCase(),
+        role: post,
+        designation: post,
+        tier: cat === 'EXECUTION_TEAM' ? 'EXECUTIVE' : cat === 'MEMBER' ? 'COMMITTEE' : cat,
+        category: cat === 'PRESIDENT' || cat === 'VICE_PRESIDENT' ? 'LEADERSHIP' : cat === 'EXECUTION_TEAM' ? 'OPERATIONS' : 'COMMITTEE',
+        department: application.department || 'Computer Engineering',
+        academicYear: application.academicYear || '2026-27',
+        photoUrl: user.photoUrl || '/assets/aces-team.jpg',
+        displayOrder: order,
+        isActive: true,
+        isPublished: true,
+        isCurrent: true,
+      },
+      { upsert: true }
     );
+
+    // Send Acceptance & Platform Access Email
+    sendMembershipStatusEmail({
+      to: application.email,
+      fullName: application.fullName,
+      status: 'APPROVED',
+      reviewerNotes: application.reviewerNotes,
+      assignedPost: post,
+      credentials: tempPassword ? { email: application.email, password: tempPassword } : null,
+    }).catch((err) => console.warn('Membership approval email send error:', err.message));
+  } else if (normalizedStatus === 'REJECTED') {
+    // Send Rejection Notice Email
+    sendMembershipStatusEmail({
+      to: application.email,
+      fullName: application.fullName,
+      status: 'REJECTED',
+      reviewerNotes: application.reviewerNotes || 'Thank you for applying. We encourage you to participate in upcoming ACES technical events.',
+    }).catch((err) => console.warn('Membership rejection email send error:', err.message));
   }
 
   res.status(200).json({

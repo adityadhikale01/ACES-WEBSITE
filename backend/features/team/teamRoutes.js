@@ -6,6 +6,7 @@ import {
   deleteMember,
   reorderMembers,
   uploadTeamPhoto,
+  assignMemberPost,
 } from './teamController.js';
 import { requireTeamAdmin } from '../../middleware/authMiddleware.js';
 import { imageUpload } from '../../middleware/uploadMiddleware.js';
@@ -31,6 +32,8 @@ const flexiblePhotoUpload = (req, res, next) => {
 
 // Team Admin routes (Superadmin, President)
 router.post('/upload-photo', requireTeamAdmin, flexiblePhotoUpload, WrapAsync(uploadTeamPhoto));
+router.patch('/assign-post/:id', requireTeamAdmin, WrapAsync(assignMemberPost));
+router.put('/assign-post/:id', requireTeamAdmin, WrapAsync(assignMemberPost));
 router.post('/', requireTeamAdmin, WrapAsync(createMember));
 router.put('/:id', requireTeamAdmin, WrapAsync(updateMember));
 router.delete('/:id', requireTeamAdmin, WrapAsync(deleteMember));

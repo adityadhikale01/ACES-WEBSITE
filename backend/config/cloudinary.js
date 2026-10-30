@@ -18,7 +18,7 @@ if (isCloudinaryConfigured) {
 /**
  * Uploads a file buffer directly to Cloudinary using upload_stream.
  */
-export const uploadBufferToCloudinary = (buffer, folder = 'aces_kbtcoe') => {
+export const uploadBufferToCloudinary = (buffer, folder = 'aces_kbtcoe', options = {}) => {
   return new Promise((resolve, reject) => {
     if (!isCloudinaryConfigured) {
       return reject(new Error('Cloudinary is not configured'));
@@ -27,6 +27,7 @@ export const uploadBufferToCloudinary = (buffer, folder = 'aces_kbtcoe') => {
       {
         folder,
         resource_type: 'auto',
+        ...options,
       },
       (error, result) => {
         if (error) reject(error);

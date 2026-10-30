@@ -53,7 +53,7 @@ const membershipApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
+      enum: ['PENDING', 'ACCEPTED', 'APPROVED', 'REJECTED'],
       default: 'PENDING',
       index: true,
     },

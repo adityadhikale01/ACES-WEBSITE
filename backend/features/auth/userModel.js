@@ -46,6 +46,51 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    photoUrl: {
+      type: String,
+      default: '/assets/aces-team.jpg',
+    },
+    bio: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    linkedinUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    githubUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    isApprovedMember: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    assignedPost: {
+      type: String,
+      trim: true,
+      default: 'ACES Member',
+    },
+    postCategory: {
+      type: String,
+      enum: ['PRESIDENT', 'VICE_PRESIDENT', 'EXECUTION_TEAM', 'MEMBER', 'FACULTY'],
+      default: 'MEMBER',
+      index: true,
+    },
+    displayOrder: {
+      type: Number,
+      default: 100,
+      index: true,
+    },
+    isPublishedOnTeam: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -75,7 +120,15 @@ userSchema.methods.toSafeObject = function () {
     academicYear: this.academicYear,
     prn: this.prn,
     phone: this.phone,
-    isApprovedMember: this.isApprovedMember ?? (this.role !== 'VISITOR'),
+    photoUrl: this.photoUrl || '/assets/aces-team.jpg',
+    bio: this.bio || '',
+    linkedinUrl: this.linkedinUrl || '',
+    githubUrl: this.githubUrl || '',
+    assignedPost: this.assignedPost || (this.role === 'PRESIDENT' ? 'President' : 'ACES Member'),
+    postCategory: this.postCategory || (this.role === 'PRESIDENT' ? 'PRESIDENT' : 'MEMBER'),
+    displayOrder: this.displayOrder || 100,
+    isPublishedOnTeam: this.isPublishedOnTeam ?? true,
+    isApprovedMember: Boolean(this.isApprovedMember || ['SUPER_ADMIN', 'ADMIN', 'FACULTY', 'PRESIDENT'].includes(this.role)),
     createdAt: this.createdAt,
   };
 };

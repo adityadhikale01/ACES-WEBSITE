@@ -1,0 +1,351 @@
+import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '../..');
+const emailLogFile = path.resolve(projectRoot, 'backend/uploads/emails.log');
+
+// Ensure email log directory exists
+try {
+  const dir = path.dirname(emailLogFile);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+} catch (e) {
+  // Ignore directory creation error
+}
+
+// Create Nodemailer Transporter
+let transporter = null;
+
+const getTransporter = () => {
+  if (transporter) return transporter;
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const port = parseInt(process.env.SMTP_PORT, 10) || 587;
+
+  if (host && user && pass) {
+    const isGmail = host.toLowerCase().includes('gmail');
+    const transportConfig = isGmail
+      ? {
+          service: 'gmail',
+          auth: { user, pass },
+        }
+      : {
+          host,
+          port,
+          secure: port === 465,
+          auth: { user, pass },
+        };
+    transporter = nodemailer.createTransport(transportConfig);
+  } else {
+    // Development / fallback logger transporter
+    transporter = {
+      sendMail: async (mailOptions) => {
+        const logEntry = `
+================================================================================
+📧 [ACES EMAIL SERVICE] Outgoing Email (${new Date().toISOString()})
+To: ${mailOptions.to}
+From: ${mailOptions.from || process.env.EMAIL_FROM || 'ACES KBTCOE <aces.kbtcoe@gmail.com>'}
+Subject: ${mailOptions.subject}
+--------------------------------------------------------------------------------
+${mailOptions.text || '(HTML Email)'}
+--------------------------------------------------------------------------------
+HTML Preview:
+${mailOptions.html ? mailOptions.html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').substring(0, 300) + '...' : ''}
+================================================================================
+`;
+        console.log(logEntry);
+
+        try {
+          fs.appendFileSync(emailLogFile, logEntry);
+        } catch (err) {
+          // ignore log write failure
+        }
+
+        return {
+          messageId: `mock-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          response: 'Logged to console and emails.log',
+        };
+      },
+    };
+  }
+
+  return transporter;
+};
+
+const sendEmail = async ({ to, subject, html, text }) => {
+  try {
+    const mailer = getTransporter();
+    const from = process.env.EMAIL_FROM || '"ACES KBTCOE" <aces.kbtcoe@gmail.com>';
+
+    const info = await mailer.sendMail({
+      from,
+      to,
+      subject,
+      text: text || html.replace(/<[^>]*>?/gm, ''),
+      html,
+    });
+
+    return { success: true, info };
+  } catch (error) {
+    console.error('[EmailService Error] Failed to send email to', to, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * 1. Membership Application Status Email
+ */
+export const sendMembershipStatusEmail = async ({
+  to,
+  fullName,
+  status,
+  reviewerNotes = '',
+  credentials = null,
+  assignedPost = 'ACES Member',
+}) => {
+  const isApproved = status === 'APPROVED' || status === 'ACCEPTED';
+  const subject = isApproved
+    ? '🎉 Congratulations! Your ACES KBTCOE Membership Application is Approved'
+    : 'Update on Your ACES KBTCOE Membership Application';
+
+  const clientUrl = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+  const loginUrl = `${clientUrl}/login`;
+  const profileUrl = `${clientUrl}/dashboard`;
+
+  const html = isApproved
+    ? `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #38bdf8; margin: 0; font-size: 24px;">ACES KBTCOE</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Association of Computer Engineering Students • MVPS KBTCOE Nashik</p>
+      </div>
+
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #34d399; margin: 0 0 6px 0; font-size: 18px;">Application Status: Approved!</h2>
+        <p style="color: #e2e8f0; margin: 0; font-size: 14px;">Welcome to the official ACES Committee & Member Network.</p>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+        Dear <strong>${fullName}</strong>,<br><br>
+        Congratulations! The ACES Superadmin and Faculty Advisory Committee have reviewed and approved your application. You have been appointed as:
+      </p>
+
+      <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 10px; padding: 14px; margin: 16px 0; text-align: center;">
+        <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; display: block;">Assigned Post / Designation</span>
+        <strong style="color: #38bdf8; font-size: 18px;">${assignedPost}</strong>
+      </div>
+
+      ${
+        credentials
+          ? `
+      <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin: 20px 0;">
+        <h3 style="color: #f8fafc; font-size: 14px; margin: 0 0 10px 0;">Your ACES Platform Login Credentials:</h3>
+        <p style="margin: 4px 0; font-size: 13px; color: #cbd5e1;"><strong>Email:</strong> ${credentials.email}</p>
+        <p style="margin: 4px 0; font-size: 13px; color: #cbd5e1;"><strong>Temporary Password:</strong> <code style="background: #1e293b; color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${credentials.password}</code></p>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #94a3b8;">Please login immediately and update your password, profile photo, phone number, LinkedIn, and GitHub links in your member dashboard.</p>
+      </div>
+      `
+          : ''
+      }
+
+      ${
+        reviewerNotes
+          ? `
+      <div style="border-left: 3px solid #38bdf8; padding-left: 12px; margin: 16px 0;">
+        <p style="color: #94a3b8; font-size: 11px; margin: 0 0 2px 0; text-transform: uppercase;">Reviewer Notes:</p>
+        <p style="color: #e2e8f0; font-size: 13px; margin: 0; font-style: italic;">"${reviewerNotes}"</p>
+      </div>
+      `
+          : ''
+      }
+
+      <div style="text-align: center; margin: 26px 0;">
+        <a href="${loginUrl}" style="background: #2563eb; color: #ffffff; padding: 12px 28px; border-radius: 10px; font-weight: bold; text-decoration: none; display: inline-block; font-size: 14px;">
+          Login to ACES Platform →
+        </a>
+      </div>
+
+      <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+        ACES KBTCOE • Department of Computer Engineering • MVPS's K.B.T. College of Engineering, Udoji Maratha Boarding Campus, Gangapur Road, Nashik
+      </p>
+    </div>
+    `
+    : `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #38bdf8; margin: 0; font-size: 24px;">ACES KBTCOE</h1>
+        <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Association of Computer Engineering Students • MVPS KBTCOE Nashik</p>
+      </div>
+
+      <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #fb7185; margin: 0 0 6px 0; font-size: 18px;">Application Status: Not Selected</h2>
+        <p style="color: #e2e8f0; margin: 0; font-size: 14px;">Thank you for your interest in joining ACES Committee.</p>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+        Dear <strong>${fullName}</strong>,<br><br>
+        Thank you for submitting your membership application to ACES. Due to limited slots in the committee roster for this cycle, we are unable to accept your application at this time.
+      </p>
+
+      ${
+        reviewerNotes
+          ? `
+      <div style="background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 14px; margin: 16px 0;">
+        <p style="color: #94a3b8; font-size: 11px; margin: 0 0 4px 0; text-transform: uppercase;">Reviewer Feedback:</p>
+        <p style="color: #e2e8f0; font-size: 13px; margin: 0;">"${reviewerNotes}"</p>
+      </div>
+      `
+          : ''
+      }
+
+      <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+        You are warmly invited to participate in all open departmental workshops, technical hackathons, coding sessions, and guest lectures hosted by ACES. We encourage you to apply again during our next membership intake.
+      </p>
+
+      <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+        ACES KBTCOE • Department of Computer Engineering • MVPS's K.B.T. College of Engineering, Nashik
+      </p>
+    </div>
+    `;
+
+  return sendEmail({ to, subject, html });
+};
+
+/**
+ * 2. Payment Verified Email with Pass and WhatsApp Group Link
+ */
+export const sendPaymentVerifiedEmail = async ({
+  to,
+  studentName,
+  eventTitle,
+  ticketId,
+  amountPaid = 0,
+  utrNumber = '',
+  whatsappGroupUrl = 'https://chat.whatsapp.com/ACES-KBTCOE-Events',
+  eventDate = '',
+  venue = 'Seminar Hall, KBTCOE',
+}) => {
+  const subject = `🎟️ Payment Verified! Your Pass for ${eventTitle} (${ticketId})`;
+  const formattedFee = (amountPaid / 100).toFixed(2);
+
+  const html = `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #38bdf8; margin: 0; font-size: 24px;">ACES KBTCOE</h1>
+      <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Official Departmental Event Registration Confirmation</p>
+    </div>
+
+    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
+      <h2 style="color: #34d399; margin: 0 0 6px 0; font-size: 18px;">✓ Payment Verified & Seat Confirmed!</h2>
+      <p style="color: #e2e8f0; margin: 0; font-size: 14px;">Your registration for <strong>${eventTitle}</strong> is active.</p>
+    </div>
+
+    <!-- Pass Ticket Box -->
+    <div style="background: #111827; border: 2px dashed #0284c7; border-radius: 14px; padding: 20px; text-align: center; margin: 20px 0;">
+      <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; display: block;">Official Ticket Pass ID</span>
+      <strong style="color: #38bdf8; font-size: 24px; font-family: monospace; letter-spacing: 2px; display: block; margin: 6px 0;">${ticketId}</strong>
+      <span style="color: #64748b; font-size: 12px;">Participant: ${studentName}</span>
+    </div>
+
+    <div style="background: #0f172a; border-radius: 12px; padding: 16px; margin: 20px 0; font-size: 13px;">
+      <p style="margin: 6px 0; color: #cbd5e1;"><strong>Event:</strong> ${eventTitle}</p>
+      ${eventDate ? `<p style="margin: 6px 0; color: #cbd5e1;"><strong>Date & Time:</strong> ${eventDate}</p>` : ''}
+      <p style="margin: 6px 0; color: #cbd5e1;"><strong>Venue:</strong> ${venue}</p>
+      <p style="margin: 6px 0; color: #cbd5e1;"><strong>Amount Verified:</strong> ₹${formattedFee}</p>
+      <p style="margin: 6px 0; color: #cbd5e1;"><strong>UTR / Reference:</strong> <span style="font-family: monospace; color: #38bdf8;">${utrNumber}</span></p>
+    </div>
+
+    <!-- Official WhatsApp Group CTA -->
+    <div style="background: rgba(37, 211, 102, 0.12); border: 1px solid rgba(37, 211, 102, 0.35); border-radius: 14px; padding: 20px; text-align: center; margin: 24px 0;">
+      <h3 style="color: #25d366; margin: 0 0 6px 0; font-size: 16px;">📲 Join the Official Event WhatsApp Group</h3>
+      <p style="color: #cbd5e1; font-size: 13px; margin: 0 0 16px 0;">Stay informed about event schedules, resources, team groupings, and urgent announcements.</p>
+      <a href="${whatsappGroupUrl}" style="background: #25d366; color: #042f1a; padding: 12px 28px; border-radius: 10px; font-weight: 800; text-decoration: none; display: inline-block; font-size: 14px; box-shadow: 0 4px 14px rgba(37, 211, 102, 0.3);">
+        Join Event WhatsApp Group →
+      </a>
+    </div>
+
+    <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+      Please keep this ticket pass handy on the day of the event.<br>
+      ACES KBTCOE • Department of Computer Engineering • MVPS's K.B.T. College of Engineering, Nashik
+    </p>
+  </div>
+  `;
+
+  return sendEmail({ to, subject, html });
+};
+
+/**
+ * 3. Payment Rejected Email
+ */
+export const sendPaymentRejectedEmail = async ({
+  to,
+  studentName,
+  eventTitle,
+  ticketId,
+  rejectionReason = 'Transaction UTR was not verified or payment screenshot was unclear.',
+  utrNumber = '',
+}) => {
+  const subject = `⚠️ Action Required: Payment Proof Status for ${eventTitle}`;
+
+  const html = `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #38bdf8; margin: 0; font-size: 24px;">ACES KBTCOE</h1>
+      <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Official Departmental Event Desk</p>
+    </div>
+
+    <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 20px;">
+      <h2 style="color: #fb7185; margin: 0 0 6px 0; font-size: 18px;">Payment Proof Could Not Be Verified</h2>
+      <p style="color: #e2e8f0; margin: 0; font-size: 14px;">Event: <strong>${eventTitle}</strong> (Ticket ID: ${ticketId})</p>
+    </div>
+
+    <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+      Dear <strong>${studentName}</strong>,<br><br>
+      Your payment submission for <strong>${eventTitle}</strong> was reviewed by the ACES verification desk. Unfortunately, the verification could not be completed for the following reason:
+    </p>
+
+    <div style="background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 14px; margin: 16px 0;">
+      <p style="color: #94a3b8; font-size: 11px; margin: 0 0 4px 0; text-transform: uppercase;">Verification Desk Feedback:</p>
+      <p style="color: #fb7185; font-size: 14px; font-weight: bold; margin: 0;">"${rejectionReason}"</p>
+      ${utrNumber ? `<p style="margin: 8px 0 0 0; font-size: 12px; color: #94a3b8;">Submitted UTR: <span style="font-family: monospace;">${utrNumber}</span></p>` : ''}
+    </div>
+
+    <p style="font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+      If you feel this is in error or you have a clear transaction statement, please contact the ACES student coordinators or reply to this email with your valid UTR and bank receipt.
+    </p>
+
+    <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+      ACES KBTCOE • Department of Computer Engineering • MVPS's K.B.T. College of Engineering, Nashik
+    </p>
+  </div>
+  `;
+
+  return sendEmail({ to, subject, html });
+};
+
+/**
+ * Verify SMTP connection health
+ */
+export const verifyEmailService = async () => {
+  const mailer = getTransporter();
+  if (mailer && typeof mailer.verify === 'function') {
+    try {
+      await mailer.verify();
+      console.log('✅ [Email Service] Real SMTP connection verified and ready to deliver emails.');
+      return { connected: true };
+    } catch (err) {
+      console.error('❌ [Email Service] SMTP verification failed:', err.message);
+      return { connected: false, error: err.message };
+    }
+  } else {
+    console.log('ℹ️ [Email Service] No SMTP credentials provided in .env. Running in development logger mode (outputs to console and uploads/emails.log).');
+    return { connected: false, mode: 'logger' };
+  }
+};

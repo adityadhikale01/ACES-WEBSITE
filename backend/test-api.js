@@ -184,6 +184,75 @@ async function runTests() {
     });
     assert(presRoleRes.status === 403, 'RBAC Enforced: President forbidden from assigning security roles (403)');
 
+    // 10. Post Assignment on Platform Member (Change 1 & 4)
+    const assignPostRes = await fetch(`${baseUrl}/api/v1/team/assign-post/${studentEmail}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        assignedPost: 'Vice President of Technical Affairs',
+        postCategory: 'VICE_PRESIDENT',
+        displayOrder: 2,
+        isPublishedOnTeam: true,
+      }),
+    });
+    const assignPostData = await assignPostRes.json();
+    assert(assignPostRes.status === 200 && assignPostData.user?.assignedPost === 'Vice President of Technical Affairs', 'Superadmin dynamically assigns Vice President post to platform member');
+
+    // 11. Membership Application & Automated Approval with Email Dispatch (Change 2)
+    const appSubmitRes = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: 'Sneha Kulkarni',
+        email: `sneha-${Date.now()}@kbtcoe.org`,
+        phone: '9876543210',
+        department: 'Computer Engineering',
+        academicYear: 'SE',
+        reasonForJoining: 'Eager to contribute to departmental workshops and web dev team.',
+        areasOfInterest: ['Web Development', 'Event Coordination'],
+      }),
+    });
+    const appSubmitData = await appSubmitRes.json();
+    assert(appSubmitRes.status === 201 && !!appSubmitData.application?._id, 'Student submits membership application');
+
+    const appReviewRes = await fetch(`${baseUrl}/api/v1/applications/${appSubmitData.application._id}/review`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        status: 'APPROVED',
+        assignedPost: 'Execution Team Lead',
+        postCategory: 'EXECUTION_TEAM',
+        adminNotes: 'Welcome aboard Sneha! Check your credentials below.',
+      }),
+    });
+    const appReviewData = await appReviewRes.json();
+    assert(appReviewRes.status === 200 && appReviewData.application?.status === 'APPROVED', 'Superadmin approves membership; credentials and automated email dispatched');
+
+    // 12. Guest Event Registration without platform login (Change 3)
+    const activeEvent = eventsData.events[0];
+    const guestEmail = `karan-${Date.now()}@gmail.com`;
+    const guestRegRes = await fetch(`${baseUrl}/api/v1/registrations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId: activeEvent._id,
+        fullName: 'Karan Deshmukh',
+        email: guestEmail,
+        phone: '9822334455',
+        college: 'NDMVP KBTCOE',
+        department: 'Computer Engineering',
+        academicYear: 'TE',
+      }),
+    });
+    const guestRegData = await guestRegRes.json();
+    assert(guestRegRes.status === 201 && !!guestRegData.registration?.ticketId, `Guest event registration succeeds without login (Ticket ID: ${guestRegData.registration?.ticketId})`);
+
     console.log('\n======================================================');
     console.log(`🏁 TEST EXECUTION COMPLETE: ${passed} PASSED, ${failed} FAILED`);
     console.log('======================================================\n');

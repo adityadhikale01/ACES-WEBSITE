@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 
 import { connectDB } from './config/db.js';
 import { errorHandler, notFoundHandler } from './middleware/errorMiddleware.js';
+import { verifyEmailService } from './utils/emailService.js';
 
 import authRoutes from './features/auth/authRoutes.js';
 import eventRoutes from './features/events/eventRoutes.js';
@@ -102,6 +103,7 @@ const PORT = process.env.PORT || 5000;
 export const startServer = async () => {
   try {
     await connectDB();
+    await verifyEmailService();
     const server = app.listen(PORT, () => {
       console.log(`[ACES Server] Running on http://localhost:${PORT}`);
     });

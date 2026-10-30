@@ -1,4 +1,5 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import HomePage from '../pages/HomePage/HomePage.jsx';
 import EventsPage from '../pages/EventsPage/EventsPage.jsx';
 import EventDetailPage from '../pages/EventDetailPage/EventDetailPage.jsx';
@@ -89,8 +90,7 @@ export const routes = [
   },
   {
     path: 'register',
-    element: <RegisterPage />,
-    action: registerAction,
+    element: <Navigate to="/apply" replace />,
   },
   {
     path: 'dashboard',

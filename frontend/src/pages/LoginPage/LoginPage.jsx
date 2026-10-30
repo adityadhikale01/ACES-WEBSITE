@@ -115,9 +115,9 @@ export const LoginPage = () => {
           </div>
 
           <div className="mt-6 pt-6 border-t border-white/5 text-center text-xs text-slate-400">
-            Don't have an account yet?{" "}
-            <Link to="/register" className="font-semibold text-electric-cyan hover:underline">
-              Create an account
+            Want to become an official ACES member?{" "}
+            <Link to="/apply" className="font-semibold text-electric-cyan hover:underline">
+              Apply for ACES Membership →
             </Link>
           </div>
         </div>

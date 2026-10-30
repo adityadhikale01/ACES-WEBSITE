@@ -20,11 +20,21 @@ export const MemberDashboard = () => {
   const [myPayments, setMyPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(user?.fullName || "");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [editName, setEditName] = useState(user?.fullName || user?.name || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
   const [editYear, setEditYear] = useState(user?.academicYear || "SE");
+  const [editBio, setEditBio] = useState(user?.bio || "");
+  const [editLinkedin, setEditLinkedin] = useState(user?.linkedinUrl || "");
+  const [editGithub, setEditGithub] = useState(user?.githubUrl || "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [profileMsg, setProfileMsg] = useState(null);
+  const [passwordMsg, setPasswordMsg] = useState(null);
   const [paymentModalReg, setPaymentModalReg] = useState(null);
   const [utrInput, setUtrInput] = useState("");
   const [screenshotFile, setScreenshotFile] = useState(null);
@@ -74,6 +84,26 @@ export const MemberDashboard = () => {
       alert(err.message || "Failed to cancel registration");
     }
   };
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingPhoto(true);
+      setProfileMsg(null);
+      const formData = new FormData();
+      formData.append('photo', file);
+      const res = await api.auth.uploadProfilePhoto(formData);
+      if (res.success) {
+        await refreshUser();
+        setProfileMsg("Profile photo updated successfully!");
+      }
+    } catch (err) {
+      alert(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     try {
@@ -82,17 +112,52 @@ export const MemberDashboard = () => {
       const res = await api.auth.updateProfile({
         fullName: editName,
         phone: editPhone,
-        academicYear: editYear
+        academicYear: editYear,
+        bio: editBio,
+        linkedinUrl: editLinkedin,
+        githubUrl: editGithub,
       });
       if (res.success) {
         await refreshUser();
         setIsEditing(false);
-        setProfileMsg("Profile updated successfully!");
+        setProfileMsg("Profile details saved successfully! Updates are live on the Team page.");
       }
     } catch (err) {
       alert(err.message || "Failed to update profile");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword) {
+      setPasswordMsg({ type: 'error', text: 'Please fill in both current and new password.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: 'error', text: 'New password and confirmation do not match.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters.' });
+      return;
+    }
+    try {
+      setChangingPassword(true);
+      setPasswordMsg(null);
+      const res = await api.auth.changePassword({ currentPassword, newPassword });
+      if (res.success) {
+        setPasswordMsg({ type: 'success', text: 'Password changed successfully!' });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTimeout(() => setIsChangingPassword(false), 2000);
+      }
+    } catch (err) {
+      setPasswordMsg({ type: 'error', text: err.message || 'Failed to change password' });
+    } finally {
+      setChangingPassword(false);
     }
   };
   const handleSubmitProof = async (e) => {
@@ -127,124 +192,327 @@ export const MemberDashboard = () => {
   if (!user) return null;
   return <div className="pt-28 pb-20 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {
-    /* Top Member Header */
-  }
+        {/* Top Member Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-slate-800/80 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-electric-blue to-electric-indigo text-white flex items-center justify-center text-2xl font-bold shadow-lg shadow-electric-blue/20">
-              {user.fullName?.charAt(0).toUpperCase()}
+          <div className="flex items-center gap-5">
+            {/* Profile Photo Avatar with Instant Upload */}
+            <div className="relative group shrink-0">
+              <img
+                src={user.photoUrl || '/assets/aces-team.jpg'}
+                alt={user.fullName || user.name}
+                className="w-20 h-20 rounded-2xl object-cover object-top border-2 border-electric-cyan/60 shadow-lg shadow-electric-cyan/20"
+                onError={(e) => {
+                  e.target.src = '/assets/aces-team.jpg';
+                }}
+              />
+              <label
+                className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-white font-bold cursor-pointer transition-opacity backdrop-blur-xs"
+                title="Change Profile Photo"
+              >
+                <span>{uploadingPhoto ? "..." : "Change"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  disabled={uploadingPhoto}
+                  className="hidden"
+                />
+              </label>
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-white">{user.fullName}</h1>
-                {user.isApprovedMember ? <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    APPROVED MEMBER
-                  </span> : <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-400 border border-white/10">
-                    STUDENT ACCOUNT
-                  </span>}
-                {isAdmin && <Link
-    to="/admin"
-    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-colors"
-  >
+
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-white">{user.fullName || user.name}</h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-electric-blue/20 text-electric-cyan border border-electric-blue/30">
+                  {user.assignedPost || (user.isApprovedMember ? "APPROVED MEMBER" : "STUDENT ACCOUNT")}
+                </span>
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-colors"
+                  >
                     ADMIN PORTAL →
-                  </Link>}
+                  </Link>
+                )}
               </div>
               <p className="text-xs text-slate-400">
                 {user.email} • {user.department || "Computer Engineering"} ({user.academicYear || "SE"})
+                {user.phone ? ` • 📞 ${user.phone}` : ""}
               </p>
+              <div className="flex items-center gap-3 pt-0.5 text-xs text-slate-400">
+                {user.linkedinUrl && (
+                  <a
+                    href={user.linkedinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-400 hover:underline flex items-center gap-1 text-[11px]"
+                  >
+                    LinkedIn
+                  </a>
+                )}
+                {user.githubUrl && (
+                  <a
+                    href={user.githubUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-slate-300 hover:underline flex items-center gap-1 text-[11px]"
+                  >
+                    GitHub
+                  </a>
+                )}
+                <span className="text-[10px] text-emerald-400 font-semibold">
+                  ✓ Profile shown to public on Team Page
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
-    onClick={() => {
-      setEditName(user.fullName);
-      setEditPhone(user.phone || "");
-      setEditYear(user.academicYear || "SE");
-      setIsEditing(!isEditing);
-    }}
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
-  >
+              onClick={() => {
+                setEditName(user.fullName || user.name || "");
+                setEditPhone(user.phone || "");
+                setEditYear(user.academicYear || "SE");
+                setEditBio(user.bio || "");
+                setEditLinkedin(user.linkedinUrl || "");
+                setEditGithub(user.githubUrl || "");
+                setIsEditing(!isEditing);
+                setIsChangingPassword(false);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 transition-colors"
+            >
               <Edit2 size={13} />
               <span>Edit Profile</span>
             </button>
             <button
-    onClick={() => logout()}
-    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20 transition-colors"
-  >
+              onClick={() => {
+                setIsChangingPassword(!isChangingPassword);
+                setIsEditing(false);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold hover:bg-white/10 transition-colors"
+            >
+              <Shield size={13} />
+              <span>Password</span>
+            </button>
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20 transition-colors"
+            >
               <LogOut size={13} />
               <span>Sign Out</span>
             </button>
           </div>
         </div>
 
-        {profileMsg && <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs mb-8">
-            {profileMsg}
-          </div>}
+        {profileMsg && (
+          <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs mb-8 flex items-center justify-between">
+            <span>{profileMsg}</span>
+            <button onClick={() => setProfileMsg(null)} className="text-emerald-400 hover:text-white">
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
-        {
-    /* Profile Edit Drawer */
-  }
-        {isEditing && <motion.div
-    initial={{ opacity: 0, height: 0 }}
-    animate={{ opacity: 1, height: "auto" }}
-    className="p-6 rounded-3xl bg-navy-900 border border-slate-700/80 mb-8 max-w-xl"
-  >
-            <h3 className="text-sm font-bold text-white mb-4">Update Profile Details</h3>
+        {/* Profile Edit Drawer */}
+        {isEditing && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="p-6 sm:p-8 rounded-3xl bg-navy-900 border border-slate-700/80 mb-8 max-w-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-white">Update Official Member Profile</h3>
+              <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
             <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 mb-1">Full Name</label>
-                <input
-    type="text"
-    required
-    value={editName}
-    onChange={(e) => setEditName(e.target.value)}
-    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
-  />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-300 mb-1">Phone Number</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">Full Name</label>
                   <input
-    type="tel"
-    value={editPhone}
-    onChange={(e) => setEditPhone(e.target.value)}
-    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
-  />
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                  />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1">Academic Year</label>
+                  <label className="block text-slate-300 mb-1 font-semibold">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">Academic Year</label>
                   <select
-    value={editYear}
-    onChange={(e) => setEditYear(e.target.value)}
-    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
-  >
+                    value={editYear}
+                    onChange={(e) => setEditYear(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                  >
                     <option value="FE">First Year (FE)</option>
                     <option value="SE">Second Year (SE)</option>
                     <option value="TE">Third Year (TE)</option>
                     <option value="BE">Final Year (BE)</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">Change Photo</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    disabled={uploadingPhoto}
+                    className="w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:bg-white/10 file:text-white"
+                  />
+                </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">LinkedIn Profile URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://linkedin.com/in/username"
+                    value={editLinkedin}
+                    onChange={(e) => setEditLinkedin(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-semibold">GitHub Profile URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://github.com/username"
+                    value={editGithub}
+                    onChange={(e) => setEditGithub(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">
+                  Bio / Statement of Purpose (Shown on Public Team Page)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Share a short summary about your technical interests, leadership experience, and contributions..."
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                />
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <button
-    type="submit"
-    disabled={savingProfile}
-    className="px-4 py-2 rounded-xl bg-electric-blue text-white font-bold text-xs"
-  >
-                  {savingProfile ? "Saving..." : "Save Changes"}
+                  type="submit"
+                  disabled={savingProfile}
+                  className="px-5 py-2 rounded-xl bg-electric-blue hover:bg-blue-600 text-white font-bold text-xs transition-colors"
+                >
+                  {savingProfile ? "Saving Profile..." : "Save Profile Details"}
                 </button>
                 <button
-    type="button"
-    onClick={() => setIsEditing(false)}
-    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 text-xs"
-  >
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 text-xs hover:bg-white/10"
+                >
                   Cancel
                 </button>
               </div>
             </form>
-          </motion.div>}
+          </motion.div>
+        )}
+
+        {/* Password Change Drawer */}
+        {isChangingPassword && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            className="p-6 rounded-3xl bg-navy-900 border border-slate-700/80 mb-8 max-w-md"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <Shield size={14} className="text-electric-cyan" />
+                <span>Change Account Password</span>
+              </h3>
+              <button onClick={() => setIsChangingPassword(false)} className="text-slate-400 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            {passwordMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs mb-3 ${
+                  passwordMsg.type === 'success'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                }`}
+              >
+                {passwordMsg.text}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">Current Password</label>
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">New Password (min 6 chars)</label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold">Confirm New Password</label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-navy-950 border border-white/10 text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="px-5 py-2 rounded-xl bg-electric-blue hover:bg-blue-600 text-white font-bold text-xs transition-colors"
+                >
+                  {changingPassword ? "Updating..." : "Update Password"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsChangingPassword(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 text-xs hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {

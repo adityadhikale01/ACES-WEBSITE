@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 // Project root is 2 levels up from backend/utils/
 const projectRoot = path.resolve(__dirname, '../..');
 
-export async function saveUploadedFile(file, subfolder = 'branding') {
+export async function saveUploadedFile(file, subfolder = 'branding', customFilename = null) {
   if (!file) {
     throw new Error('No file provided for upload');
   }
@@ -19,10 +19,14 @@ export async function saveUploadedFile(file, subfolder = 'branding') {
     return file.path;
   }
 
+  const ext = path.extname(file.originalname || '.jpg') || '.jpg';
+  const cleanCustom = customFilename ? customFilename.replace(/[^a-zA-Z0-9_-]/g, '_') : null;
+
   // 2. Try Cloudinary if configured and buffer is present
   if (isCloudinaryConfigured && file.buffer) {
     try {
-      const result = await uploadBufferToCloudinary(file.buffer, `aces_kbtcoe/${subfolder}`);
+      const publicId = cleanCustom ? `${cleanCustom}_${Date.now()}` : undefined;
+      const result = await uploadBufferToCloudinary(file.buffer, `aces_kbtcoe/${subfolder}`, { public_id: publicId });
       if (result && result.secure_url) {
         return result.secure_url;
       }
@@ -32,8 +36,9 @@ export async function saveUploadedFile(file, subfolder = 'branding') {
   }
 
   // 3. Local disk fallback
-  const ext = path.extname(file.originalname || '.jpg') || '.jpg';
-  const filename = `${subfolder}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+  const filename = cleanCustom
+    ? `${cleanCustom}${ext}`
+    : `${subfolder}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
 
   // Save to both root uploads and backend uploads for maximum compatibility
   const rootTargetDir = path.resolve(projectRoot, `uploads/public/${subfolder}`);

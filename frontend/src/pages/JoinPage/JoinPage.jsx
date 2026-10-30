@@ -25,6 +25,7 @@ export const JoinPage = () => {
   const { user, isAuthenticated } = useAuth();
   const [fullName, setFullName] = useState(user?.fullName || "");
   const [email, setEmail] = useState(user?.email || "");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [department, setDepartment] = useState("Computer Engineering");
   const [academicYear, setAcademicYear] = useState("SE");
   const [prnOrRoll, setPrnOrRoll] = useState("");
@@ -63,6 +64,7 @@ export const JoinPage = () => {
       const res = await api.applications.submit({
         fullName,
         email,
+        phone,
         department,
         academicYear,
         prnOrRoll,
@@ -70,7 +72,7 @@ export const JoinPage = () => {
         reasonForJoining
       });
       if (res.success) {
-        setSuccessMsg(res.message || "Application submitted successfully!");
+        setSuccessMsg(res.message || "Application submitted successfully! Your submission is now under review by the Superadmin.");
         if (res.application) {
           setExistingApp(res.application);
         }
@@ -218,13 +220,13 @@ export const JoinPage = () => {
                       Full Name *
                     </label>
                     <input
-    type="text"
-    required
-    placeholder="e.g. Rahul Sharma"
-    value={fullName}
-    onChange={(e) => setFullName(e.target.value)}
-    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
-  />
+                      type="text"
+                      required
+                      placeholder="e.g. Rahul Sharma"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+                    />
                   </div>
 
                   <div>
@@ -232,27 +234,29 @@ export const JoinPage = () => {
                       Email Address *
                     </label>
                     <input
-    type="email"
-    required
-    placeholder="student@kbtcoe.org"
-    value={email}
-    onChange={(e) => setEmail(e.target.value)}
-    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
-  />
+                      type="email"
+                      required
+                      placeholder="student@kbtcoe.org"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-slate-300 font-medium mb-1.5">
-                      Department
+                      Phone Number *
                     </label>
                     <input
-    type="text"
-    disabled
-    value={department}
-    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-slate-400"
-  />
+                      type="tel"
+                      required
+                      placeholder="+91 98765 43210"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+                    />
                   </div>
 
                   <div>
@@ -260,10 +264,10 @@ export const JoinPage = () => {
                       Academic Year *
                     </label>
                     <select
-    value={academicYear}
-    onChange={(e) => setAcademicYear(e.target.value)}
-    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white focus:outline-none focus:border-electric-cyan"
-  >
+                      value={academicYear}
+                      onChange={(e) => setAcademicYear(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white focus:outline-none focus:border-electric-cyan"
+                    >
                       <option value="FE">First Year (FE)</option>
                       <option value="SE">Second Year (SE)</option>
                       <option value="TE">Third Year (TE)</option>
@@ -276,12 +280,12 @@ export const JoinPage = () => {
                       PRN / Roll No. (Optional)
                     </label>
                     <input
-    type="text"
-    placeholder="e.g. 7234..."
-    value={prnOrRoll}
-    onChange={(e) => setPrnOrRoll(e.target.value)}
-    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
-  />
+                      type="text"
+                      placeholder="e.g. 7234..."
+                      value={prnOrRoll}
+                      onChange={(e) => setPrnOrRoll(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+                    />
                   </div>
                 </div>
 

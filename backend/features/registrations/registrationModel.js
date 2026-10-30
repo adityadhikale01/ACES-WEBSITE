@@ -163,6 +163,14 @@ registrationSchema.pre('save', function (next) {
 });
 
 registrationSchema.index({ eventId: 1, email: 1, status: 1 });
+registrationSchema.index(
+  { eventId: 1, userId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } }
+);
 
 export const Registration = mongoose.model('Registration', registrationSchema);
+
+// Drop old legacy unique index if it exists in MongoDB
+Registration.collection.dropIndex('eventId_1_userId_1').catch(() => {});
+
 export default Registration;

@@ -15,6 +15,16 @@ const eventSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    eventCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: function () {
+        const base = (this && (this.slug || this.title)) ? (this.slug || this.title) : 'ACES-EVT';
+        return base.toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 16);
+      },
+      index: true,
+    },
     subtitle: {
       type: String,
       trim: true,

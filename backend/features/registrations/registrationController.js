@@ -94,20 +94,22 @@ export const registerForEvent = async (req, res, next) => {
   const fee = event.fee || event.feeAmountInPaise || 0;
   const utr = utrReference || utrNumber || '';
 
-  // Process payment screenshot upload if present
+  // Generate unique Ticket ID first so screenshot filename embeds event code & registration ticket
+  const randomHex = Math.random().toString(36).substring(2, 7).toUpperCase();
+  const timeSlice = Date.now().toString().slice(-4);
+  const ticketId = `ACES-${event.category || 'EVT'}-${randomHex}${timeSlice}`;
+  const eventCode = (event.eventCode || event.slug || 'EVT').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+
+  // Process payment screenshot upload if present with Event custom code and registration ticket ID
   let screenshotUrl = '';
   if (req.file) {
     try {
-      screenshotUrl = await saveUploadedFile(req.file, 'payments');
+      const customFilename = `${eventCode}_${ticketId}_receipt`;
+      screenshotUrl = await saveUploadedFile(req.file, 'payments', customFilename);
     } catch (err) {
       console.warn('Screenshot upload warning:', err.message);
     }
   }
-
-  // Generate unique Ticket ID
-  const randomHex = Math.random().toString(36).substring(2, 7).toUpperCase();
-  const timeSlice = Date.now().toString().slice(-4);
-  const ticketId = `ACES-${event.category || 'EVT'}-${randomHex}${timeSlice}`;
 
   // Initial registration status
   let initialStatus = 'REGISTERED';

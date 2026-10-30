@@ -42,6 +42,8 @@ export const api = {
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request('/auth/me'),
     updateProfile: (body) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
+    uploadProfilePhoto: (formData) => request('/auth/profile-photo', { method: 'POST', body: formData }),
+    changePassword: (body) => request('/auth/change-password', { method: 'PUT', body: JSON.stringify(body) }),
   },
 
   // Events
@@ -136,6 +138,8 @@ export const api = {
       request('/team/reorder', { method: 'PATCH', body: JSON.stringify({ orderedIds }) }),
     uploadPhoto: (formData) =>
       request('/team/upload-photo', { method: 'POST', body: formData }),
+    assignPost: (id, body) =>
+      request(`/team/assign-post/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   },
 
   // Activities

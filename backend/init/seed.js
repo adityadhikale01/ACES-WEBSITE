@@ -18,6 +18,11 @@ export const seedDatabase = async () => {
     await mongoose.connect(uri);
   }
 
+  // Ensure legacy index is dropped for guest registrations
+  try {
+    await mongoose.connection.collection('registrations').dropIndex('eventId_1_userId_1');
+  } catch (e) {}
+
   console.log('[Seed] Seeding all 17 authentic ACES Committee members, events, gallery, and administrative accounts...');
 
   // 1. Seed Real-Life Role-Based Administrative Accounts
@@ -325,10 +330,47 @@ export const seedDatabase = async () => {
     },
   ];
 
+  const defaultMemberPasswordHash = await bcrypt.hash('AcesMember@2026', 10);
   for (const m of teamData) {
+    const slugName = m.name.toLowerCase().replace(/[^a-z0-9]/g, '.');
+    const memberEmail = m.email || `${slugName}@kbtcoe.org`;
+
+    const cat =
+      m.tier === 'PRESIDENT'
+        ? 'PRESIDENT'
+        : m.tier === 'VICE_PRESIDENT'
+        ? 'VICE_PRESIDENT'
+        : m.tier === 'EXECUTIVE'
+        ? 'EXECUTION_TEAM'
+        : 'MEMBER';
+
+    await User.findOneAndUpdate(
+      { email: memberEmail },
+      {
+        name: m.name,
+        fullName: m.name,
+        email: memberEmail,
+        passwordHash: defaultMemberPasswordHash,
+        role: ['PRESIDENT', 'VICE_PRESIDENT'].includes(m.tier) ? m.tier : 'MEMBER',
+        department: m.department || 'Computer Engineering',
+        academicYear: m.academicYear || 'TE',
+        photoUrl: m.photoUrl,
+        bio: m.bio || '',
+        linkedinUrl: m.linkedinUrl || '',
+        githubUrl: m.githubUrl || '',
+        assignedPost: m.designation || m.role,
+        postCategory: cat,
+        displayOrder: m.displayOrder || 100,
+        isApprovedMember: true,
+        isActive: true,
+        isPublishedOnTeam: true,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     await TeamMember.findOneAndUpdate(
       { name: m.name },
-      { ...m, isCurrent: true, isActive: true, isPublished: true },
+      { ...m, email: memberEmail, isCurrent: true, isActive: true, isPublished: true },
       { upsert: true, setDefaultsOnInsert: true }
     );
   }

@@ -3,6 +3,7 @@ import Joi from 'joi';
 export const createEventSchema = Joi.object({
   title: Joi.string().trim().min(2).max(200).required(),
   slug: Joi.string().trim().lowercase(),
+  eventCode: Joi.string().trim().uppercase().allow('', null),
   subtitle: Joi.string().trim().allow('', null),
   shortDescription: Joi.string().trim().allow('', null),
   description: Joi.string().trim().min(5).required(),

@@ -1,6 +1,11 @@
 import PaymentProof from './paymentModel.js';
 import Registration from '../registrations/registrationModel.js';
 import Event from '../events/eventModel.js';
+import { saveUploadedFile } from '../../utils/fileStorage.js';
+import {
+  sendPaymentVerifiedEmail,
+  sendPaymentRejectedEmail,
+} from '../../utils/emailService.js';
 import { AppError } from '../../utils/AppError.js';
 
 export const submitPaymentProof = async (req, res, next) => {
@@ -34,11 +39,19 @@ export const submitPaymentProof = async (req, res, next) => {
   let receiptMimeType = file?.mimetype || 'image/png';
   let receiptUrl = null;
 
+  const eventCode = (event.eventCode || event.slug || 'EVT').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  const ticketId = registration.ticketId || `REG-${registration._id}`;
+
   if (file) {
-    if (file.buffer) {
-      receiptData = file.buffer;
-    } else if (file.path) {
-      receiptUrl = file.path;
+    try {
+      const customFilename = `${eventCode}_${ticketId}_receipt`;
+      receiptUrl = await saveUploadedFile(file, 'payments', customFilename);
+    } catch (e) {
+      if (file.buffer) {
+        receiptData = file.buffer;
+      } else if (file.path) {
+        receiptUrl = file.path;
+      }
     }
   }
 
@@ -171,18 +184,56 @@ export const reviewPaymentProof = async (req, res, next) => {
 
   await payment.save();
 
+  const reg = await Registration.findById(payment.registrationId);
+  const ev = await Event.findById(payment.eventId);
+
   if (isApproved) {
-    await Registration.findByIdAndUpdate(payment.registrationId, {
-      status: 'REGISTERED',
-      paymentStatus: 'VERIFIED',
-    });
+    if (reg) {
+      reg.status = 'REGISTERED';
+      reg.paymentStatus = 'VERIFIED';
+      await reg.save();
+    }
     await Event.findByIdAndUpdate(payment.eventId, {
       $inc: { registrationCount: 1, registeredCount: 1 },
     });
+
+    // Send confirmation email to student with ticket pass and WhatsApp group link
+    if (reg && reg.email) {
+      const formattedDate = ev?.startDate
+        ? new Date(ev.startDate).toLocaleString('en-IN', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })
+        : '';
+      sendPaymentVerifiedEmail({
+        to: reg.email,
+        studentName: reg.fullName || reg.name || 'Participant',
+        eventTitle: ev?.title || 'ACES Departmental Event',
+        ticketId: reg.ticketId || `ACES-EVT-${reg._id.toString().slice(-6).toUpperCase()}`,
+        amountPaid: payment.amountInPaise || payment.expectedAmount || 0,
+        utrNumber: payment.utrNumber || payment.utrReference || '',
+        whatsappGroupUrl: ev?.whatsappGroupUrl || ev?.whatsappLink || 'https://chat.whatsapp.com/ACES-KBTCOE-Events',
+        eventDate: formattedDate,
+        venue: ev?.venue || 'Dept. of Computer Engineering, MVPS KBTCOE',
+      }).catch((err) => console.warn('Payment email send notice:', err.message));
+    }
   } else {
-    await Registration.findByIdAndUpdate(payment.registrationId, {
-      paymentStatus: 'REJECTED',
-    });
+    if (reg) {
+      reg.paymentStatus = 'REJECTED';
+      await reg.save();
+
+      // Send rejection email to student with reason
+      if (reg.email) {
+        sendPaymentRejectedEmail({
+          to: reg.email,
+          studentName: reg.fullName || reg.name || 'Participant',
+          eventTitle: ev?.title || 'ACES Departmental Event',
+          ticketId: reg.ticketId || `ACES-EVT-${reg._id.toString().slice(-6).toUpperCase()}`,
+          rejectionReason: payment.rejectionReason,
+          utrNumber: payment.utrNumber || payment.utrReference || '',
+        }).catch((err) => console.warn('Payment rejection email notice:', err.message));
+      }
+    }
   }
 
   res.status(200).json({
