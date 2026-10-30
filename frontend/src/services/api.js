@@ -80,6 +80,8 @@ export const api = {
     getAttendees: (eventId) => request(`/registrations/event/${eventId}`),
     updateAttendance: (id, status) =>
       request(`/registrations/${id}/attendance`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    markAttendance: (id, attended) =>
+      request(`/registrations/${id}/attendance`, { method: 'PATCH', body: JSON.stringify({ attended }) }),
     getExportUrl: (eventId) => `${API_BASE}/registrations/event/${eventId}/export`,
   },
 
@@ -185,6 +187,8 @@ export const api = {
     update: (key, data) => request(`/content/${key}`, { method: 'PUT', body: JSON.stringify({ data }) }),
     uploadImage: (formData) =>
       request('/content/upload-image', { method: 'POST', body: formData }),
+    sendTestEmail: (body) =>
+      request('/content/send-test-email', { method: 'POST', body: JSON.stringify(body) }),
   },
 
   // Admin

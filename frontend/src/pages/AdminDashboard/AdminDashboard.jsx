@@ -31,7 +31,14 @@ import {
   Filter,
   Clock,
   UserCheck,
-  UserX
+  UserX,
+  ArrowLeft,
+  Send,
+  EyeOff,
+  AlertTriangle,
+  FileSpreadsheet,
+  Check,
+  ChevronRight
 } from "lucide-react";
 import { useAuth } from "../../auth/authContext.jsx";
 import { api } from "../../services/api.js";
@@ -75,7 +82,7 @@ export const AdminDashboard = () => {
       label: "Activities & Achievements",
       icon: Award,
       badgeKey: "activities",
-      roles: ["FACULTY"] // Faculty specific view
+      roles: ["FACULTY"]
     },
     {
       id: "applications",
@@ -100,10 +107,14 @@ export const AdminDashboard = () => {
     isFaculty ? "activities" : "overview"
   );
 
-  // Sub-tabs for the consolidated modules
-  const [eventsSubTab, setEventsSubTab] = useState("events"); // "events" | "registrations" | "payments"
+  // Sub-tabs & Event Operations Desk states
+  const [eventsSubTab, setEventsSubTab] = useState("pipeline"); // "pipeline" | "global_payments"
+  const [pipelineFilter, setPipelineFilter] = useState("UPCOMING"); // "UPCOMING" | "PAST" | "ALL" | "CLOSED"
+  const [selectedEventForDesk, setSelectedEventForDesk] = useState(null); // When an event is clicked!
+  const [deskSubTab, setDeskSubTab] = useState("attendees"); // "attendees" | "payments" | "info"
+
   const [teamSubTab, setTeamSubTab] = useState("members"); // "members" | "committee" | "designations" | "users"
-  const [settingsSubTab, setSettingsSubTab] = useState("branding"); // "branding" | "content" | "upi" | "messages" | "system"
+  const [settingsSubTab, setSettingsSubTab] = useState("branding"); // "branding" | "content" | "upi" | "email" | "messages" | "system"
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -136,6 +147,8 @@ export const AdminDashboard = () => {
   const [selectedEventId, setSelectedEventId] = useState("");
   const [attendees, setAttendees] = useState([]);
   const [loadingAttendees, setLoadingAttendees] = useState(false);
+  const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [attendeeFilter, setAttendeeFilter] = useState("ALL");
 
   // Payment inspection modal state
   const [inspectingPayment, setInspectingPayment] = useState(null);
@@ -152,6 +165,7 @@ export const AdminDashboard = () => {
   const defaultEventForm = {
     title: "",
     slug: "",
+    eventCode: "",
     subtitle: "",
     description: "",
     category: "WORKSHOP",
@@ -209,9 +223,9 @@ export const AdminDashboard = () => {
   });
   const [assigningSubmitting, setAssigningSubmitting] = useState(false);
 
-  // Membership Application Review Modal state (Interactive approval & rejection)
+  // Membership Application Review Modal state
   const [reviewingApp, setReviewingApp] = useState(null);
-  const [reviewAction, setReviewAction] = useState("APPROVED"); // "APPROVED" | "REJECTED"
+  const [reviewAction, setReviewAction] = useState("APPROVED");
   const [appAssignedPost, setAppAssignedPost] = useState("ACES Member");
   const [appPostCategory, setAppPostCategory] = useState("MEMBER");
   const [appReviewNotes, setAppReviewNotes] = useState("");
@@ -254,7 +268,7 @@ export const AdminDashboard = () => {
     featured: false
   });
 
-  // Website Branding & Content
+  // Website Branding & Visuals
   const [branding, setBranding] = useState({
     groupPhotoUrl: "/assets/aces-team.jpg",
     logoUrl: "/assets/aces-logo.jpeg",
@@ -277,6 +291,27 @@ export const AdminDashboard = () => {
     instructions: "Pay via UPI QR or VPA. Enter 12-digit UTR transaction reference upon completion.",
     refundPolicy: "Non-refundable once verified and confirmed."
   });
+
+  // Change 1: Editable Email Information & SMTP Settings
+  const [emailSettings, setEmailSettings] = useState({
+    smtpHost: "smtp.gmail.com",
+    smtpPort: 587,
+    smtpUser: "",
+    smtpPass: "",
+    emailFrom: '"ACES KBTCOE" <aces.kbtcoe@gmail.com>',
+    replyTo: "aces.kbtcoe@gmail.com",
+    headerTitle: "ACES KBTCOE",
+    headerSubtitle: "Association of Computer Engineering Students • MVPS KBTCOE Nashik",
+    footerDisclaimer: "ACES KBTCOE • Department of Computer Engineering • MVPS's K.B.T. College of Engineering, Gangapur Road, Nashik - 422013",
+    eventNotes: "Please bring your college ID card and reach the venue 15 minutes before the start time.",
+    membershipNotes: "Welcome to the official ACES Committee network. Please log in to complete your profile."
+  });
+  const [savingEmailSettings, setSavingEmailSettings] = useState(false);
+  const [testEmailRecipient, setTestEmailRecipient] = useState("");
+  const [testEmailMessage, setTestEmailMessage] = useState("");
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
 
   // Filters & Search
   const [paymentSearch, setPaymentSearch] = useState("");
@@ -301,7 +336,8 @@ export const AdminDashboard = () => {
         albRes,
         actRes,
         userRes,
-        brandRes
+        brandRes,
+        emailRes
       ] = await Promise.all([
         api.admin.getStats().catch(() => ({ success: false })),
         !isFacOnly ? api.events.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
@@ -313,7 +349,8 @@ export const AdminDashboard = () => {
         api.gallery.getAlbums().catch(() => ({ success: false })),
         api.activities.getAll().catch(() => ({ success: false })),
         isSuper ? api.admin.getUsers().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
-        api.content.get("branding").catch(() => ({ success: false }))
+        api.content.get("branding").catch(() => ({ success: false })),
+        api.content.get("email_settings").catch(() => ({ success: false }))
       ]);
 
       if (statsRes.success && statsRes.stats) setStats(statsRes.stats);
@@ -321,6 +358,10 @@ export const AdminDashboard = () => {
         setEvents(evRes.events);
         if (evRes.events.length > 0 && !selectedEventId) {
           setSelectedEventId(evRes.events[0]._id);
+        }
+        if (selectedEventForDesk) {
+          const fresh = evRes.events.find((e) => e._id === selectedEventForDesk._id);
+          if (fresh) setSelectedEventForDesk(fresh);
         }
       }
       if (appRes.success && appRes.applications) setApplications(appRes.applications);
@@ -335,6 +376,9 @@ export const AdminDashboard = () => {
       if (userRes.success && userRes.users) setUsersList(userRes.users);
       if (brandRes.success && brandRes.data) {
         setBranding((prev) => ({ ...prev, ...brandRes.data }));
+      }
+      if (emailRes.success && emailRes.data) {
+        setEmailSettings((prev) => ({ ...prev, ...emailRes.data }));
       }
     } catch (err) {
       console.error("Failed to load admin dashboard data:", err);
@@ -445,6 +489,7 @@ export const AdminDashboard = () => {
     setEventForm({
       title: event.title,
       slug: event.slug,
+      eventCode: event.eventCode || "",
       subtitle: event.subtitle || "",
       description: event.description,
       category: event.category,
@@ -476,9 +521,33 @@ export const AdminDashboard = () => {
     if (!window.confirm("Delete this event? Registrations will also be removed.")) return;
     try {
       await api.events.delete(id);
+      if (selectedEventForDesk?._id === id) setSelectedEventForDesk(null);
       loadAllAdminData();
     } catch (err) {
       alert(err.message || "Delete failed");
+    }
+  };
+
+  // Change 2: Close / Reopen Event Lifecycle Action
+  const handleToggleEventStatus = async (event, newStatus) => {
+    const confirmMsg =
+      newStatus === "CLOSED"
+        ? `Close registrations for "${event.title}"? Students will no longer be able to register.`
+        : newStatus === "COMPLETED"
+        ? `Mark "${event.title}" as Completed/Concluded?`
+        : `Re-open registrations for "${event.title}"?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await api.events.update(event._id, { status: newStatus });
+      loadAllAdminData();
+      if (selectedEventForDesk?._id === event._id) {
+        setSelectedEventForDesk((prev) => ({ ...prev, status: newStatus }));
+      }
+      alert(`Event status updated to ${newStatus}`);
+    } catch (err) {
+      alert(err.message || "Failed to update event status");
     }
   };
 
@@ -795,6 +864,47 @@ export const AdminDashboard = () => {
     }
   };
 
+  // Change 1: Save Mail Settings & Send Test Email Handlers
+  const handleSaveEmailSettings = async () => {
+    try {
+      setSavingEmailSettings(true);
+      await api.content.update("email_settings", emailSettings);
+      alert("Email configuration and templates saved successfully!");
+    } catch (err) {
+      alert(err.message || "Failed to save email settings");
+    } finally {
+      setSavingEmailSettings(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailRecipient.trim()) {
+      alert("Please enter a recipient email address for the test.");
+      return;
+    }
+    try {
+      setSendingTestEmail(true);
+      setTestEmailStatus(null);
+      const res = await api.content.sendTestEmail({
+        to: testEmailRecipient.trim(),
+        customMessage: testEmailMessage.trim() || undefined
+      });
+      if (res.success) {
+        setTestEmailStatus({
+          success: true,
+          message: `✓ Test email dispatched successfully to ${testEmailRecipient}!`
+        });
+      }
+    } catch (err) {
+      setTestEmailStatus({
+        success: false,
+        message: `✕ Delivery failed: ${err.message}`
+      });
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
+
   const handleUpdateUserRole = async (userId, newRole) => {
     try {
       await api.admin.updateUser(userId, { role: newRole });
@@ -840,6 +950,66 @@ export const AdminDashboard = () => {
   ).length;
 
   const approvedPlatformMembers = usersList.filter((u) => u.isApprovedMember);
+
+  // Change 2: Pipeline segregation
+  const now = new Date();
+  const upcomingEvents = events.filter((e) => new Date(e.startDate || e.eventDate) >= now);
+  const pastEvents = events.filter((e) => new Date(e.startDate || e.eventDate) < now);
+
+  const displayedPipelineEvents = events.filter((e) => {
+    const isPast = new Date(e.startDate || e.eventDate) < now;
+    if (pipelineFilter === "UPCOMING") return !isPast && e.status !== "CLOSED" && e.status !== "COMPLETED";
+    if (pipelineFilter === "PAST") return isPast || e.status === "COMPLETED";
+    if (pipelineFilter === "CLOSED") return e.status === "CLOSED" || e.status === "COMPLETED";
+    return true; // "ALL"
+  }).filter((e) => {
+    if (!eventSearch) return true;
+    const q = eventSearch.toLowerCase();
+    return (
+      e.title.toLowerCase().includes(q) ||
+      (e.eventCode && e.eventCode.toLowerCase().includes(q)) ||
+      (e.category && e.category.toLowerCase().includes(q))
+    );
+  });
+
+  // Current Desk Data when an event is selected
+  const deskEvent = selectedEventForDesk;
+  const deskAttendees = attendees.filter((a) => {
+    if (!deskEvent) return false;
+    const matchesEvent = a.eventId === deskEvent._id || (typeof a.eventId === "object" && a.eventId?._id === deskEvent._id);
+    if (!matchesEvent) return false;
+
+    if (attendeeFilter === "ATTENDED") return a.attended;
+    if (attendeeFilter === "NOT_ATTENDED") return !a.attended;
+    if (attendeeFilter === "VERIFIED") return a.paymentStatus === "VERIFIED" || a.paymentStatus === "COMPLETED";
+    if (attendeeFilter === "FREE") return !a.isPaidEvent || a.paymentStatus === "FREE";
+
+    if (!attendeeSearch) return true;
+    const q = attendeeSearch.toLowerCase();
+    const name = a.fullName || a.name || "";
+    const email = a.email || "";
+    const ticketId = a.ticketId || "";
+    const phone = a.phone || "";
+    return name.toLowerCase().includes(q) || email.toLowerCase().includes(q) || ticketId.toLowerCase().includes(q) || phone.includes(q);
+  });
+
+  const deskPayments = payments.filter((p) => {
+    if (!deskEvent) return false;
+    return p.eventId === deskEvent._id || (typeof p.eventId === "object" && p.eventId?._id === deskEvent._id);
+  });
+
+  const deskPendingPayments = deskPayments.filter((p) => p.status === "PROOF_SUBMITTED");
+  const deskVerifiedPayments = deskPayments.filter((p) => p.status === "VERIFIED");
+  const deskTotalCollected = deskVerifiedPayments.reduce(
+    (sum, p) => sum + (p.expectedAmount || p.amountInPaise || 0) / 100,
+    0
+  );
+
+  const deskAttendedCount = attendees.filter((a) => {
+    if (!deskEvent) return false;
+    const matchesEvent = a.eventId === deskEvent._id || (typeof a.eventId === "object" && a.eventId?._id === deskEvent._id);
+    return matchesEvent && a.attended;
+  }).length;
 
   if (!isAdmin) return null;
 
@@ -938,7 +1108,12 @@ export const AdminDashboard = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === "events_hub") {
+                    // Retain desk if already open, or return to pipeline
+                  }
+                }}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
                   isActive
                     ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-lg shadow-amber-500/10"
@@ -1010,7 +1185,7 @@ export const AdminDashboard = () => {
                     <button
                       onClick={() => {
                         setActiveTab("events_hub");
-                        setEventsSubTab("payments");
+                        setEventsSubTab("global_payments");
                       }}
                       className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left hover:bg-amber-500/20 transition-all"
                     >
@@ -1026,7 +1201,7 @@ export const AdminDashboard = () => {
                     <button
                       onClick={() => {
                         setActiveTab("events_hub");
-                        setEventsSubTab("events");
+                        setSelectedEventForDesk(null);
                         setEditingEventId(null);
                         setEventForm(defaultEventForm);
                         setIsEventModalOpen(true);
@@ -1075,15 +1250,15 @@ export const AdminDashboard = () => {
                   <button
                     onClick={() => {
                       setActiveTab("settings");
-                      setSettingsSubTab("branding");
+                      setSettingsSubTab("email");
                     }}
                     className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-left hover:bg-teal-500/20 transition-all"
                   >
                     <div className="text-teal-300 font-bold text-xs flex items-center justify-between">
-                      <span>Update Group Photo & Logo</span>
-                      <UploadCloud size={15} />
+                      <span>Email Delivery & SMTP Settings</span>
+                      <Mail size={15} />
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1">Upload new Group Photo or Club Logo</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Configure mail templates & live SMTP</p>
                   </button>
                 )}
               </div>
@@ -1092,63 +1267,543 @@ export const AdminDashboard = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* MODULE 2: EVENTS, REGISTRATIONS & PAYMENT PROOF */}
+        {/* MODULE 2: ENHANCED EVENT ORGANIZER WORKSPACE & OPERATIONS DESK */}
         {/* ========================================================================= */}
         {activeTab === "events_hub" && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
-            {/* Sub-tab Navigation for Module 2 */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">Events, Registrations & Payment Proof</h2>
-                <p className="text-xs text-slate-400">
-                  Manage events, inspect ticket attendee lists, and verify UPI payment screenshots
-                </p>
-              </div>
+            {/* VIEW A: EVENT OPERATIONS DESK (WHEN AN EVENT IS CLICKED) */}
+            {selectedEventForDesk ? (
+              <div className="space-y-6">
+                {/* Desk Breadcrumb & Navigation */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-navy-900 p-5 rounded-3xl border border-white/10">
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => setSelectedEventForDesk(null)}
+                      className="inline-flex items-center gap-1.5 text-xs text-electric-cyan hover:underline font-bold mb-1"
+                    >
+                      <ArrowLeft size={14} />
+                      <span>Back to All Events Pipeline</span>
+                    </button>
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-xl font-extrabold text-white">{deskEvent.title}</h2>
+                      <span className="font-mono text-xs px-2 py-0.5 rounded bg-white/10 text-cyan-300 font-bold">
+                        {deskEvent.eventCode || "ACES-EVT"}
+                      </span>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {deskEvent.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      📅 {new Date(deskEvent.startDate || deskEvent.eventDate).toLocaleString()} • 📍 {deskEvent.venue}
+                    </p>
+                  </div>
 
-              <div className="flex items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
-                <button
-                  onClick={() => setEventsSubTab("events")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    eventsSubTab === "events"
-                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Events ({events.length})
-                </button>
-                <button
-                  onClick={() => setEventsSubTab("registrations")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    eventsSubTab === "registrations"
-                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  Registrations & Attendees ({stats.totalRegistrations})
-                </button>
-                <button
-                  onClick={() => setEventsSubTab("payments")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                    eventsSubTab === "payments"
-                      ? "bg-amber-500 text-black shadow-md shadow-amber-500/20 font-bold"
-                      : "text-amber-400 hover:text-amber-300"
-                  }`}
-                >
-                  <CreditCard size={13} />
-                  <span>Payment Verification</span>
-                  {pendingPaymentsCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-600 text-white font-extrabold">
-                      {pendingPaymentsCount}
-                    </span>
+                  {/* Organizer Command Actions */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Event Status Toggles */}
+                    {new Date(deskEvent.startDate || deskEvent.eventDate) < now && deskEvent.status === "PUBLISHED" ? (
+                      <button
+                        onClick={() => handleToggleEventStatus(deskEvent, "COMPLETED")}
+                        className="px-3.5 py-2 rounded-xl bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 shadow-md flex items-center gap-1.5"
+                      >
+                        <Check size={14} />
+                        <span>Close Event (Concluded)</span>
+                      </button>
+                    ) : deskEvent.status === "PUBLISHED" ? (
+                      <button
+                        onClick={() => handleToggleEventStatus(deskEvent, "CLOSED")}
+                        className="px-3.5 py-2 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold hover:bg-rose-500/30"
+                      >
+                        Stop Registrations
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleToggleEventStatus(deskEvent, "PUBLISHED")}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold hover:bg-emerald-500/30"
+                      >
+                        Re-Open Event
+                      </button>
+                    )}
+
+                    <a
+                      href={api.registrations.getExportUrl(deskEvent._id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-semibold hover:bg-white/10 inline-flex items-center gap-1.5"
+                    >
+                      <FileSpreadsheet size={13} className="text-emerald-400" />
+                      <span>Export CSV</span>
+                    </a>
+
+                    {deskEvent.whatsappGroupUrl && (
+                      <a
+                        href={deskEvent.whatsappGroupUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-600/30 inline-flex items-center gap-1.5"
+                      >
+                        <span>WhatsApp Group</span>
+                        <ExternalLink size={12} />
+                      </a>
+                    )}
+
+                    <button
+                      onClick={() => handleEditEvent(deskEvent)}
+                      className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-xs font-semibold hover:bg-white/10"
+                    >
+                      Edit Info
+                    </button>
+                  </div>
+                </div>
+
+                {/* Event Past Warning Banner */}
+                {new Date(deskEvent.startDate || deskEvent.eventDate) < now && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="text-amber-400 shrink-0" size={20} />
+                      <div>
+                        <strong className="text-amber-300 text-sm block">Past Event Concluded</strong>
+                        <p className="text-xs text-amber-200/80">
+                          This event date has passed. You can inspect remaining payment proofs and finalize the attendance desk.
+                        </p>
+                      </div>
+                    </div>
+                    {deskEvent.status !== "COMPLETED" && (
+                      <button
+                        onClick={() => handleToggleEventStatus(deskEvent, "COMPLETED")}
+                        className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold shrink-0"
+                      >
+                        Finalize & Close Desk
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Event Key Metrics Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                  <div className="p-4 rounded-2xl bg-navy-900 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Total Enrolled</span>
+                    <div className="text-2xl font-black text-white mt-1">
+                      {deskAttendees.length}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      Capacity: {deskEvent.capacity || "∞"} seats
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-navy-900 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400">Checked-in Attended</span>
+                    <div className="text-2xl font-black text-emerald-300 mt-1">
+                      {deskAttendedCount}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      {deskAttendees.length > 0
+                        ? `${Math.round((deskAttendedCount / deskAttendees.length) * 100)}% attendance rate`
+                        : "No attendees yet"}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-navy-900 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-cyan-400">Total Revenue</span>
+                    <div className="text-2xl font-black text-cyan-300 mt-1">
+                      {deskEvent.isPaid ? `₹${deskTotalCollected.toFixed(2)}` : "FREE EVENT"}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      {deskEvent.isPaid ? `${deskVerifiedPayments.length} verified payments` : "No fees collected"}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-navy-900 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-amber-400">Pending Proofs</span>
+                    <div className="text-2xl font-black text-amber-300 mt-1">
+                      {deskPendingPayments.length}
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      {deskPendingPayments.length > 0 ? "Awaiting your verification" : "All proofs reviewed"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desk Sub-Tabs */}
+                <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+                  <button
+                    onClick={() => setDeskSubTab("attendees")}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      deskSubTab === "attendees"
+                        ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Attendees & Check-In ({deskAttendees.length})
+                  </button>
+
+                  {deskEvent.isPaid && (
+                    <button
+                      onClick={() => setDeskSubTab("payments")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        deskSubTab === "payments"
+                          ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
+                          : "text-amber-400 hover:text-amber-300"
+                      }`}
+                    >
+                      <CreditCard size={13} />
+                      <span>Payment Desk ({deskPayments.length})</span>
+                      {deskPendingPayments.length > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-600 text-white font-extrabold">
+                          {deskPendingPayments.length}
+                        </span>
+                      )}
+                    </button>
                   )}
-                </button>
-              </div>
-            </div>
 
-            {/* Sub-tab 1: Events Management */}
-            {eventsSubTab === "events" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setDeskSubTab("info")}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      deskSubTab === "info"
+                        ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Event Details & WhatsApp
+                  </button>
+                </div>
+
+                {/* Desk Tab 1: Attendees & Check-in Table */}
+                {deskSubTab === "attendees" && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="relative w-full sm:w-80">
+                        <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search attendees by name, ticket, PRN, or email..."
+                          value={attendeeSearch}
+                          onChange={(e) => setAttendeeSearch(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {["ALL", "ATTENDED", "NOT_ATTENDED", "VERIFIED", "FREE"].map((flt) => (
+                          <button
+                            key={flt}
+                            onClick={() => setAttendeeFilter(flt)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                              attendeeFilter === flt
+                                ? "bg-white/10 text-white border border-white/20"
+                                : "text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            {flt.replace("_", " ")}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {deskAttendees.length === 0 ? (
+                      <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
+                        No attendees match the criteria for this event.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                        <table className="w-full text-left text-xs text-slate-300">
+                          <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                            <tr>
+                              <th className="py-3 px-4">Ticket Pass</th>
+                              <th className="py-3 px-4">Participant Name</th>
+                              <th className="py-3 px-4">College / Dept</th>
+                              <th className="py-3 px-4">Payment</th>
+                              <th className="py-3 px-4">Attendance Check-in</th>
+                              <th className="py-3 px-4 text-right">Team</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {deskAttendees.map((a) => {
+                              const participantName = a.fullName || a.name || "Student";
+                              const participantEmail = a.email || "";
+                              const ticketId = a.ticketId || `ACES-${(a._id || "").substring(18).toUpperCase()}`;
+
+                              return (
+                                <tr key={a._id} className="hover:bg-white/5 transition-colors">
+                                  <td className="py-3.5 px-4 font-mono text-[11px] font-bold text-cyan-300">
+                                    {ticketId}
+                                  </td>
+                                  <td className="py-3.5 px-4">
+                                    <strong className="text-white block">{participantName}</strong>
+                                    <span className="text-[10px] text-slate-400">{participantEmail}</span>
+                                    {a.phone && (
+                                      <span className="block text-[10px] text-slate-500 font-mono">
+                                        📞 {a.phone}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3.5 px-4">
+                                    {a.department || "Comp Engg"} • <span className="text-white">{a.academicYear || "SE"}</span>
+                                    <span className="block text-[10px] text-slate-400">{a.college || "NDMVP KBTCOE"}</span>
+                                  </td>
+                                  <td className="py-3.5 px-4">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        a.paymentStatus === "VERIFIED" || a.paymentStatus === "COMPLETED"
+                                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                          : a.paymentStatus === "PROOF_SUBMITTED"
+                                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                          : "bg-slate-700 text-slate-300"
+                                      }`}
+                                    >
+                                      {a.paymentStatus || "FREE"}
+                                    </span>
+                                  </td>
+                                  <td className="py-3.5 px-4">
+                                    <button
+                                      onClick={async () => {
+                                        const next = !a.attended;
+                                        await api.registrations.markAttendance(a._id, next);
+                                        setAttendees((prev) =>
+                                          prev.map((item) =>
+                                            item._id === a._id ? { ...item, attended: next } : item
+                                          )
+                                        );
+                                      }}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors inline-flex items-center gap-1.5 ${
+                                        a.attended
+                                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                          : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+                                      }`}
+                                    >
+                                      <Check size={12} className={a.attended ? "text-emerald-400" : "opacity-40"} />
+                                      <span>{a.attended ? "Attended" : "Check In"}</span>
+                                    </button>
+                                  </td>
+                                  <td className="py-3.5 px-4 text-right">
+                                    {a.isGroupRegistration && (
+                                      <button
+                                        onClick={() => setViewingTeamModal(a)}
+                                        className="px-2.5 py-1 rounded bg-electric-blue/20 text-electric-cyan text-[11px] font-semibold hover:bg-electric-blue/30"
+                                      >
+                                        Team ({a.groupMembers?.length || 0})
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Desk Tab 2: Event Payments Table */}
+                {deskSubTab === "payments" && deskEvent.isPaid && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                        Payment Proofs for {deskEvent.title} ({deskPayments.length})
+                      </h3>
+                      {new Date(deskEvent.startDate || deskEvent.eventDate) < now && (
+                        <span className="text-xs text-amber-300 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/20">
+                          Past Event Mode: Complete pending verifications to finalize finances.
+                        </span>
+                      )}
+                    </div>
+
+                    {deskPayments.length === 0 ? (
+                      <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
+                        No payment submissions recorded for this event yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
+                        <table className="w-full text-left text-xs text-slate-300">
+                          <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
+                            <tr>
+                              <th className="py-3 px-4">Student</th>
+                              <th className="py-3 px-4">Expected Fee</th>
+                              <th className="py-3 px-4">Submitted UTR</th>
+                              <th className="py-3 px-4">Submitted At</th>
+                              <th className="py-3 px-4">Status</th>
+                              <th className="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {deskPayments.map((p) => {
+                              const studentName =
+                                p.userId?.fullName ||
+                                p.userId?.name ||
+                                p.registrationId?.fullName ||
+                                p.name ||
+                                "Student";
+                              const studentEmail =
+                                p.userId?.email || p.registrationId?.email || p.email || "";
+                              const displayAmount = (p.expectedAmount || p.amountInPaise || 0) / 100;
+
+                              return (
+                                <tr key={p._id} className="hover:bg-white/5 transition-colors">
+                                  <td className="py-3.5 px-4">
+                                    <strong className="text-white block">{studentName}</strong>
+                                    <span className="text-[10px] text-slate-400 block">{studentEmail}</span>
+                                  </td>
+                                  <td className="py-3.5 px-4 font-bold text-amber-300">
+                                    ₹{displayAmount.toFixed(2)}
+                                  </td>
+                                  <td className="py-3.5 px-4 font-mono text-[11px] text-cyan-300">
+                                    {p.utrReference || p.utrNumber || "N/A"}
+                                  </td>
+                                  <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
+                                    {new Date(p.submittedAt || p.createdAt).toLocaleString()}
+                                  </td>
+                                  <td className="py-3.5 px-4">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        p.status === "VERIFIED"
+                                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                          : p.status === "PROOF_SUBMITTED"
+                                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                          : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                      }`}
+                                    >
+                                      {p.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3.5 px-4 text-right">
+                                    <button
+                                      onClick={() => {
+                                        setInspectingPayment(p);
+                                        setRejectionReason(p.rejectionReason || "");
+                                        setAdminNote(p.adminNotes || "");
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 transition-colors inline-flex items-center gap-1.5"
+                                    >
+                                      <Eye size={12} />
+                                      <span>Inspect Proof</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Desk Tab 3: Event Info & Links */}
+                {deskSubTab === "info" && (
+                  <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                    <h3 className="font-bold text-white text-sm">Event Overview & Resources</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block uppercase font-bold text-[10px]">WhatsApp Group Join Link:</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="text"
+                            readOnly
+                            value={deskEvent.whatsappGroupUrl || "No link configured"}
+                            className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                          />
+                          {deskEvent.whatsappGroupUrl && (
+                            <a
+                              href={deskEvent.whatsappGroupUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-2 rounded-xl bg-emerald-600 text-white font-bold shrink-0"
+                            >
+                              Open
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block uppercase font-bold text-[10px]">Post-Event Media Gallery:</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-slate-300 text-xs">Upload event photos and videos to gallery albums.</p>
+                          <button
+                            onClick={() => setActiveTab("gallery")}
+                            className="px-3 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 font-semibold shrink-0"
+                          >
+                            Jump to Gallery
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* VIEW B: EVENT PIPELINE OVERVIEW */
+              <div className="space-y-6">
+                {/* Header & Sub-tab Selector */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Event Organizer Pipeline & Operations</h2>
+                    <p className="text-xs text-slate-400">
+                      Click any event card to open its dedicated Attendee Check-In Desk and Payment Proof Desk.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingEventId(null);
+                        setEventForm(defaultEventForm);
+                        setIsEventModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/10"
+                    >
+                      <Plus size={14} />
+                      <span>Create New Event</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pipeline Category Filters */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
+                    <button
+                      onClick={() => setPipelineFilter("UPCOMING")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        pipelineFilter === "UPCOMING"
+                          ? "bg-emerald-500 text-black font-bold shadow-md shadow-emerald-500/20"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Upcoming & Live ({upcomingEvents.length})
+                    </button>
+                    <button
+                      onClick={() => setPipelineFilter("PAST")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        pipelineFilter === "PAST"
+                          ? "bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Past Events ({pastEvents.length})
+                    </button>
+                    <button
+                      onClick={() => setPipelineFilter("CLOSED")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        pipelineFilter === "CLOSED"
+                          ? "bg-rose-500 text-white font-bold"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Concluded / Closed
+                    </button>
+                    <button
+                      onClick={() => setPipelineFilter("ALL")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                        pipelineFilter === "ALL"
+                          ? "bg-electric-blue text-white font-bold"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      All ({events.length})
+                    </button>
+                  </div>
+
                   <div className="relative w-72">
                     <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
                     <input
@@ -1159,360 +1814,131 @@ export const AdminDashboard = () => {
                       className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
                     />
                   </div>
-                  <button
-                    onClick={() => {
-                      setEditingEventId(null);
-                      setEventForm(defaultEventForm);
-                      setIsEventModalOpen(true);
-                    }}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-colors"
-                  >
-                    <Plus size={14} />
-                    <span>Create New Event</span>
-                  </button>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                      <tr>
-                        <th className="py-3 px-4">Event & Code</th>
-                        <th className="py-3 px-4">Fee Structure</th>
-                        <th className="py-3 px-4">Schedule</th>
-                        <th className="py-3 px-4">Seats</th>
-                        <th className="py-3 px-4">WhatsApp Link</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {events
-                        .filter(
-                          (e) =>
-                            !eventSearch ||
-                            e.title.toLowerCase().includes(eventSearch.toLowerCase()) ||
-                            (e.eventCode && e.eventCode.toLowerCase().includes(eventSearch.toLowerCase()))
-                        )
-                        .map((e) => (
-                          <tr key={e._id} className="hover:bg-white/5 transition-colors">
-                            <td className="py-3.5 px-4">
-                              <strong className="text-white block">{e.title}</strong>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] text-electric-cyan font-mono font-bold bg-white/5 px-1.5 py-0.5 rounded">
-                                  {e.eventCode || "ACES-EVT"}
-                                </span>
-                                <span className="text-[10px] text-slate-400 uppercase font-semibold">
-                                  {e.category}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {e.isPaid ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                  ₹{(e.fee / 100).toFixed(2)}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                                  FREE
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {new Date(e.startDate).toLocaleDateString()}
-                              <span className="block text-[10px] text-slate-400">{e.timeString || "TBD"}</span>
-                            </td>
-                            <td className="py-3.5 px-4 font-semibold text-white">
-                              {e.registeredCount || 0} / {e.capacity || "∞"}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {e.whatsappGroupUrl || e.whatsappLink ? (
-                                <a
-                                  href={e.whatsappGroupUrl || e.whatsappLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-medium"
-                                >
-                                  <span>WhatsApp Group</span>
-                                  <ExternalLink size={10} />
-                                </a>
-                              ) : (
-                                <span className="text-slate-500 text-[11px]">Not linked</span>
-                              )}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  e.status === "PUBLISHED"
-                                    ? "bg-emerald-500/20 text-emerald-300"
-                                    : "bg-slate-700 text-slate-400"
-                                }`}
-                              >
-                                {e.status}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right space-x-2">
-                              <button
-                                onClick={() => handleEditEvent(e)}
-                                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteEvent(e._id)}
-                                className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Sub-tab 2: Registrations & Attendees */}
-            {eventsSubTab === "registrations" && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-navy-900 border border-white/10">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                      Filter Attendees by Event:
-                    </label>
-                    <select
-                      value={selectedEventId}
-                      onChange={(e) => setSelectedEventId(e.target.value)}
-                      className="px-3 py-1.5 bg-navy-950 border border-white/10 rounded-xl text-xs text-white font-medium"
-                    >
-                      {events.map((ev) => (
-                        <option key={ev._id} value={ev._id}>
-                          {ev.title} ({ev.isPaid ? `₹${(ev.fee / 100).toFixed(0)}` : "FREE"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="text-xs text-slate-400">
-                    Total Attendees Enrolled: <strong className="text-white">{attendees.length}</strong>
-                  </div>
-                </div>
-
-                {loadingAttendees ? (
-                  <div className="p-12 text-center text-xs text-slate-400">Loading attendee records...</div>
-                ) : attendees.length === 0 ? (
+                {/* Event Pipeline Cards Grid */}
+                {displayedPipelineEvents.length === 0 ? (
                   <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                    No student registrations recorded for this event yet.
+                    No events found in this pipeline category.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                        <tr>
-                          <th className="py-3 px-4">Ticket ID</th>
-                          <th className="py-3 px-4">Participant Details</th>
-                          <th className="py-3 px-4">College / Dept</th>
-                          <th className="py-3 px-4">Payment Status</th>
-                          <th className="py-3 px-4">Attendance</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {attendees.map((a) => {
-                          const participantName = a.fullName || a.name || "Student";
-                          const participantEmail = a.email || "";
-                          const participantPhone = a.phone || "";
-                          const ticketId = a.ticketId || `ACES-${(a._id || "").substring(18).toUpperCase()}`;
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {displayedPipelineEvents.map((ev) => {
+                      const isPast = new Date(ev.startDate || ev.eventDate) < now;
+                      const cap = ev.capacity || 100;
+                      const regCount = ev.registeredCount || 0;
+                      const capPercent = Math.min(100, Math.round((regCount / cap) * 100));
 
-                          return (
-                            <tr key={a._id} className="hover:bg-white/5 transition-colors">
-                              <td className="py-3.5 px-4 font-mono text-[11px] font-bold text-cyan-300">
-                                {ticketId}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <strong className="text-white block">{participantName}</strong>
-                                <span className="text-[10px] text-slate-400">{participantEmail}</span>
-                                {participantPhone && (
-                                  <span className="block text-[10px] text-slate-500 font-mono">
-                                    📞 {participantPhone}
+                      return (
+                        <div
+                          key={ev._id}
+                          className={`rounded-3xl border transition-all p-5 space-y-4 flex flex-col justify-between ${
+                            isPast
+                              ? "bg-navy-900/60 border-amber-500/20 hover:border-amber-500/40"
+                              : "bg-navy-900 border-white/10 hover:border-electric-blue/40 shadow-xl"
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {/* Card Top Strip */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-[10px] font-extrabold px-2 py-0.5 rounded bg-white/10 text-cyan-300">
+                                {ev.eventCode || "ACES-EVT"}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {isPast ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    PAST EVENT
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                    UPCOMING
                                   </span>
                                 )}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                {a.department || "Comp Engg"} • <span className="text-white">{a.academicYear || "SE"}</span>
-                                <span className="block text-[10px] text-slate-400">{a.college || "NDMVP KBTCOE"}</span>
-                              </td>
-                              <td className="py-3.5 px-4">
                                 <span
                                   className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                    a.paymentStatus === "VERIFIED" || a.paymentStatus === "COMPLETED"
-                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                      : a.paymentStatus === "PROOF_SUBMITTED"
-                                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                      : "bg-slate-700 text-slate-300"
+                                    ev.status === "PUBLISHED"
+                                      ? "bg-emerald-500/10 text-emerald-300"
+                                      : "bg-slate-700 text-slate-400"
                                   }`}
                                 >
-                                  {a.paymentStatus || "FREE"}
+                                  {ev.status}
                                 </span>
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <button
-                                  onClick={async () => {
-                                    const next = !a.attended;
-                                    await api.registrations.markAttendance(a._id, next);
-                                    setAttendees((prev) =>
-                                      prev.map((item) =>
-                                        item._id === a._id ? { ...item, attended: next } : item
-                                      )
-                                    );
-                                  }}
-                                  className={`px-2.5 py-1 rounded text-[10px] font-bold border transition-colors ${
-                                    a.attended
-                                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
+                              </div>
+                            </div>
+
+                            {/* Title & Info */}
+                            <div>
+                              <h3 className="font-extrabold text-white text-base line-clamp-1">{ev.title}</h3>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                📅 {new Date(ev.startDate || ev.eventDate).toLocaleDateString()} • {ev.timeString || "10:00 AM"}
+                              </p>
+                              <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">📍 {ev.venue}</p>
+                            </div>
+
+                            {/* Capacity Progress Bar */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[11px]">
+                                <span className="text-slate-400">Capacity</span>
+                                <span className="font-semibold text-white">
+                                  {regCount} / {ev.capacity || "∞"} ({capPercent}%)
+                                </span>
+                              </div>
+                              <div className="w-full bg-navy-950 rounded-full h-1.5 overflow-hidden border border-white/5">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    capPercent > 90 ? "bg-rose-500" : "bg-electric-blue"
                                   }`}
-                                >
-                                  {a.attended ? "✓ Attended" : "Mark Present"}
-                                </button>
-                              </td>
-                              <td className="py-3.5 px-4 text-right">
-                                {a.isGroupRegistration && (
-                                  <button
-                                    onClick={() => setViewingTeamModal(a)}
-                                    className="px-2.5 py-1 rounded bg-electric-blue/20 text-electric-cyan text-[11px] font-semibold hover:bg-electric-blue/30"
-                                  >
-                                    View Team ({a.groupMembers?.length || 0})
-                                  </button>
+                                  style={{ width: `${capPercent}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Fee & Tag Strip */}
+                            <div className="flex items-center justify-between text-xs pt-1">
+                              <div>
+                                {ev.isPaid ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                                    ₹{(ev.fee / 100).toFixed(2)}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                                    FREE EVENT
+                                  </span>
                                 )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+                              </div>
+                              <span className="text-[10px] uppercase font-semibold text-slate-400">
+                                {ev.category}
+                              </span>
+                            </div>
+                          </div>
 
-            {/* Sub-tab 3: Payment Verification Queue */}
-            {eventsSubTab === "payments" && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-bold text-white">Manual Payment Verification Queue</h3>
-                    <p className="text-xs text-slate-400">
-                      Review student UTR references and payment proof screenshots. Approving verifies ticket & emails receipt.
-                    </p>
-                  </div>
+                          {/* Card Action Buttons */}
+                          <div className="space-y-2 pt-3 border-t border-white/10">
+                            {/* Change 2: Past event closing option right on card */}
+                            {isPast && ev.status === "PUBLISHED" && (
+                              <button
+                                onClick={() => handleToggleEventStatus(ev, "COMPLETED")}
+                                className="w-full py-1.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                              >
+                                <Check size={12} />
+                                <span>Close Registrations (Concluded)</span>
+                              </button>
+                            )}
 
-                  <div className="flex items-center gap-2">
-                    {["ALL", "PROOF_SUBMITTED", "VERIFIED", "REJECTED"].map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => setPaymentStatusFilter(st)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-                          paymentStatusFilter === st
-                            ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                            : "bg-navy-900 text-slate-400 border-white/5 hover:text-white"
-                        }`}
-                      >
-                        {st === "PROOF_SUBMITTED" ? "PENDING" : st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by UTR reference, student name, or email..."
-                    value={paymentSearch}
-                    onChange={(e) => setPaymentSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                  />
-                </div>
-
-                {filteredPayments.length === 0 ? (
-                  <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                    No payment submissions match the selected filter.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-white/10 bg-navy-900">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-white/5 text-slate-400 uppercase text-[10px] tracking-wider border-b border-white/10">
-                        <tr>
-                          <th className="py-3 px-4">Student</th>
-                          <th className="py-3 px-4">Event</th>
-                          <th className="py-3 px-4">Fee Amount</th>
-                          <th className="py-3 px-4">UTR Reference</th>
-                          <th className="py-3 px-4">Submitted At</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Review Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {filteredPayments.map((p) => {
-                          const studentName =
-                            p.userId?.fullName ||
-                            p.userId?.name ||
-                            p.registrationId?.fullName ||
-                            p.name ||
-                            "Student Participant";
-                          const studentEmail =
-                            p.userId?.email || p.registrationId?.email || p.email || "";
-                          const eventTitle = typeof p.eventId === "object" ? p.eventId.title : "Event";
-                          const displayAmount = (p.expectedAmount || p.amountInPaise || 0) / 100;
-                          const displayUtr = p.utrReference || p.utrNumber || "N/A";
-
-                          return (
-                            <tr key={p._id} className="hover:bg-white/5 transition-colors">
-                              <td className="py-3.5 px-4">
-                                <strong className="text-white block">{studentName}</strong>
-                                <span className="text-[10px] text-slate-400 block">{studentEmail}</span>
-                              </td>
-                              <td className="py-3.5 px-4 font-medium text-white">{eventTitle}</td>
-                              <td className="py-3.5 px-4 font-bold text-amber-300">
-                                ₹{displayAmount.toFixed(2)}
-                              </td>
-                              <td className="py-3.5 px-4 font-mono text-[11px] text-cyan-300 bg-white/5 px-2 py-1 rounded inline-block my-2">
-                                {displayUtr}
-                              </td>
-                              <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
-                                {new Date(p.submittedAt || p.createdAt).toLocaleString()}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                    p.status === "VERIFIED"
-                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                      : p.status === "PROOF_SUBMITTED"
-                                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                      : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                                  }`}
-                                >
-                                  {p.status}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4 text-right">
-                                <button
-                                  onClick={() => {
-                                    setInspectingPayment(p);
-                                    setRejectionReason(p.rejectionReason || "");
-                                    setAdminNote(p.adminNotes || "");
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:bg-blue-600 transition-colors inline-flex items-center gap-1.5"
-                                >
-                                  <Eye size={12} />
-                                  <span>Inspect Proof</span>
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                            <button
+                              onClick={() => {
+                                setSelectedEventId(ev._id);
+                                setSelectedEventForDesk(ev);
+                              }}
+                              className="w-full py-2.5 px-4 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5"
+                            >
+                              <span>Open Event Operations Desk</span>
+                              <ChevronRight size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2269,19 +2695,19 @@ export const AdminDashboard = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* MODULE 6: SETTINGS, WEBSITE CONTENT & GROUP PHOTO */}
+        {/* MODULE 6: SETTINGS, WEBSITE CONTENT & EDITABLE MAIL INFORMATION */}
         {/* ========================================================================= */}
         {activeTab === "settings" && isSuperAdmin && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Settings, Website Content & Photos</h2>
+                <h2 className="text-lg font-bold text-white">Settings, Website Content & Mail Config</h2>
                 <p className="text-xs text-slate-400">
-                  Update official group photo, club logo, homepage headlines, UPI receiver, and view contact submissions
+                  Update branding photos, headlines, UPI receiver, and configure live SMTP & custom mail templates
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
+              <div className="flex flex-wrap items-center gap-2 bg-navy-900 p-1.5 rounded-2xl border border-white/10">
                 <button
                   onClick={() => setSettingsSubTab("branding")}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
@@ -2311,6 +2737,18 @@ export const AdminDashboard = () => {
                   }`}
                 >
                   UPI VPA & Payments
+                </button>
+                {/* Change 1: Dedicated Mail Settings Sub-Tab */}
+                <button
+                  onClick={() => setSettingsSubTab("email")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    settingsSubTab === "email"
+                      ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                      : "text-electric-cyan hover:text-white"
+                  }`}
+                >
+                  <Mail size={13} />
+                  <span>Mail Service & Templates</span>
                 </button>
                 <button
                   onClick={() => setSettingsSubTab("messages")}
@@ -2548,7 +2986,236 @@ export const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Sub-tab 4: Contact Form Messages */}
+            {/* Change 1 Sub-tab 4: Editable Mail Information & Live SMTP Configuration */}
+            {settingsSubTab === "email" && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left 2 cols: Editable Email Settings & Template Content */}
+                  <div className="lg:col-span-2 p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-5">
+                    <div>
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <Mail className="text-electric-cyan" size={18} />
+                        <span>Email Delivery & SMTP Configuration</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Superadmin can update the SMTP credentials, sender identity, and email templates directly from here.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <label className="font-semibold text-slate-300 block mb-1">SMTP Server Host</label>
+                        <input
+                          type="text"
+                          value={emailSettings.smtpHost}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtpHost: e.target.value })}
+                          placeholder="e.g. smtp.gmail.com or smtp.resend.com"
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-300 block mb-1">SMTP Port</label>
+                        <input
+                          type="number"
+                          value={emailSettings.smtpPort}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtpPort: Number(e.target.value) || 587 })}
+                          placeholder="587 or 465"
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-300 block mb-1">SMTP Username / Email</label>
+                        <input
+                          type="text"
+                          value={emailSettings.smtpUser}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtpUser: e.target.value })}
+                          placeholder="e.g. aces.kbtcoe@gmail.com"
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-semibold text-slate-300 block">SMTP Password / App Key</label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                            className="text-[10px] text-cyan-300 hover:underline flex items-center gap-1"
+                          >
+                            {showSmtpPassword ? <EyeOff size={11} /> : <Eye size={11} />}
+                            <span>{showSmtpPassword ? "Hide" : "Show"}</span>
+                          </button>
+                        </div>
+                        <input
+                          type={showSmtpPassword ? "text" : "password"}
+                          value={emailSettings.smtpPass}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtpPass: e.target.value })}
+                          placeholder="16-char App Password or API key"
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-300 block mb-1">Outgoing Sender Display (From)</label>
+                        <input
+                          type="text"
+                          value={emailSettings.emailFrom}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, emailFrom: e.target.value })}
+                          placeholder='"ACES KBTCOE" <aces.kbtcoe@gmail.com>'
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono text-[11px]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-semibold text-slate-300 block mb-1">Reply-To Address</label>
+                        <input
+                          type="email"
+                          value={emailSettings.replyTo}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, replyTo: e.target.value })}
+                          placeholder="aces.kbtcoe@gmail.com"
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 pt-2 border-t border-white/5">
+                        <label className="font-semibold text-slate-300 block mb-1">Organization Header Title</label>
+                        <input
+                          type="text"
+                          value={emailSettings.headerTitle}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, headerTitle: e.target.value })}
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="font-semibold text-slate-300 block mb-1">Department Header Subtitle</label>
+                        <input
+                          type="text"
+                          value={emailSettings.headerSubtitle}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, headerSubtitle: e.target.value })}
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="font-semibold text-slate-300 block mb-1">Custom Note on Event Passes</label>
+                        <textarea
+                          rows={2}
+                          value={emailSettings.eventNotes}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, eventNotes: e.target.value })}
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="font-semibold text-slate-300 block mb-1">Footer Signature & Disclaimer</label>
+                        <textarea
+                          rows={2}
+                          value={emailSettings.footerDisclaimer}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, footerDisclaimer: e.target.value })}
+                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-3 border-t border-white/10">
+                      <button
+                        onClick={handleSaveEmailSettings}
+                        disabled={savingEmailSettings}
+                        className="px-6 py-2.5 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 disabled:opacity-50 shadow-lg shadow-blue-500/20"
+                      >
+                        {savingEmailSettings ? "Saving Settings..." : "Save Email Settings & Templates"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right 1 col: Live SMTP Diagnostic & Quick Test */}
+                  <div className="space-y-6">
+                    <div className="p-6 rounded-3xl bg-navy-900 border border-white/10 space-y-4">
+                      <div>
+                        <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                          <Send size={15} className="text-emerald-400" />
+                          <span>Send Test Email</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Dispatch an immediate test email to verify your SMTP connection live.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="font-semibold text-slate-300 block mb-1">Recipient Test Email *</label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="your-personal-email@gmail.com"
+                            value={testEmailRecipient}
+                            onChange={(e) => setTestEmailRecipient(e.target.value)}
+                            className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-semibold text-slate-300 block mb-1">Custom Test Note (Optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Testing ACES KBTCOE email dispatcher"
+                            value={testEmailMessage}
+                            onChange={(e) => setTestEmailMessage(e.target.value)}
+                            className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleSendTestEmail}
+                          disabled={sendingTestEmail || !testEmailRecipient}
+                          className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs disabled:opacity-50 transition-colors shadow-lg shadow-emerald-600/20"
+                        >
+                          {sendingTestEmail ? "Sending Test Email..." : "Send Test Email Now"}
+                        </button>
+
+                        {testEmailStatus && (
+                          <div
+                            className={`p-3 rounded-xl border text-[11px] ${
+                              testEmailStatus.success
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                                : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                            }`}
+                          >
+                            {testEmailStatus.message}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick Gmail Setup Guide */}
+                    <div className="p-5 rounded-2xl bg-navy-950 border border-white/10 space-y-2 text-xs">
+                      <strong className="text-white block font-bold">Gmail SMTP Quick Setup:</strong>
+                      <ol className="list-decimal list-inside space-y-1 text-slate-400 text-[11px]">
+                        <li>Enable 2-Step Verification on Gmail account.</li>
+                        <li>
+                          Visit{" "}
+                          <a
+                            href="https://myaccount.google.com/apppasswords"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-300 underline"
+                          >
+                            myaccount.google.com/apppasswords
+                          </a>
+                        </li>
+                        <li>Generate a 16-character App Password.</li>
+                        <li>Paste password above into SMTP Password field.</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab 5: Contact Form Messages */}
             {settingsSubTab === "messages" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -2598,7 +3265,7 @@ export const AdminDashboard = () => {
               </div>
             )}
 
-            {/* Sub-tab 5: System Health */}
+            {/* Sub-tab 6: System Health */}
             {settingsSubTab === "system" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-6 rounded-2xl bg-navy-900 border border-white/10 space-y-4">
@@ -2628,19 +3295,19 @@ export const AdminDashboard = () => {
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between py-1.5 border-b border-white/5">
                       <span className="text-slate-400">Service Engine:</span>
-                      <span className="font-semibold text-emerald-400">Nodemailer SMTP + Disk Fallback</span>
+                      <span className="font-semibold text-emerald-400">Nodemailer (Dynamic DB & Env SMTP)</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-white/5">
+                      <span className="text-slate-400">Free Event Passes:</span>
+                      <span className="font-semibold text-emerald-400">Instant Automated Dispatch</span>
                     </div>
                     <div className="flex justify-between py-1.5 border-b border-white/5">
                       <span className="text-slate-400">Application Approvals:</span>
                       <span className="font-semibold text-emerald-400">Auto-Generates Credentials & Welcome Email</span>
                     </div>
                     <div className="flex justify-between py-1.5 border-b border-white/5">
-                      <span className="text-slate-400">Application Rejections:</span>
-                      <span className="font-semibold text-rose-400">Auto-Dispatches Feedback Notice</span>
-                    </div>
-                    <div className="flex justify-between py-1.5 border-b border-white/5">
-                      <span className="text-slate-400">Payment Confirmations:</span>
-                      <span className="font-semibold text-emerald-400">Auto-Sends Ticket Pass + WhatsApp Link</span>
+                      <span className="text-slate-400">Paid Event Passes:</span>
+                      <span className="font-semibold text-emerald-400">Dispatched upon Admin UTR Verification</span>
                     </div>
                   </div>
                 </div>

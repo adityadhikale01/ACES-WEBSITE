@@ -253,6 +253,79 @@ async function runTests() {
     const guestRegData = await guestRegRes.json();
     assert(guestRegRes.status === 201 && !!guestRegData.registration?.ticketId, `Guest event registration succeeds without login (Ticket ID: ${guestRegData.registration?.ticketId})`);
 
+    // 13. Free Event Registration with Ticket Pass & WhatsApp Group (Change 1)
+    const freeEvent = eventsData.events.find((e) => !e.isPaid) || activeEvent;
+    const freeStudentEmail = `tanvi-${Date.now()}@kbtcoe.in`;
+    const freeRegRes = await fetch(`${baseUrl}/api/v1/registrations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId: freeEvent._id,
+        fullName: 'Tanvi Joshi',
+        email: freeStudentEmail,
+        phone: '9890123456',
+        college: 'NDMVP KBTCOE',
+        department: 'Computer Engineering',
+        academicYear: 'SE',
+      }),
+    });
+    const freeRegData = await freeRegRes.json();
+    assert(
+      freeRegRes.status === 201 &&
+        ['REGISTERED', 'CONFIRMED'].includes(freeRegData.registration?.status) &&
+        !!freeRegData.registration?.ticketId,
+      `Free event registration automatically confirmed with Ticket ID & confirmation email dispatched (${freeRegData.registration?.ticketId})`
+    );
+
+    // 14. Event Operations Desk: Attendee Check-In Toggle (Change 2)
+    const regIdToCheckIn = freeRegData.registration?._id;
+    const checkInRes = await fetch(`${baseUrl}/api/v1/registrations/${regIdToCheckIn}/attendance`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ attended: true }),
+    });
+    const checkInData = await checkInRes.json();
+    assert(
+      checkInRes.status === 200 && checkInData.registration?.attended === true,
+      'Event Operations Desk: Attendee check-in status toggled to attended: true'
+    );
+
+    // 15. Superadmin Mail Service: Live Test Email (Change 1)
+    const testEmailRes = await fetch(`${baseUrl}/api/v1/content/send-test-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        recipient: 'test.organizer@kbtcoe.org',
+        message: 'ACES automated verification test dispatch.',
+      }),
+    });
+    const testEmailData = await testEmailRes.json();
+    assert(
+      testEmailRes.status === 200 && testEmailData.success === true,
+      `Superadmin Email Setting: Live Test Email dispatched successfully (${testEmailData.message})`
+    );
+
+    // 16. Past Event Operations: Close Event Status (Change 2)
+    const closeEventRes = await fetch(`${baseUrl}/api/v1/events/${freeEvent._id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ status: 'CLOSED' }),
+    });
+    const closeEventData = await closeEventRes.json();
+    assert(
+      closeEventRes.status === 200 && closeEventData.event?.status === 'CLOSED',
+      'Event Operations Desk: Past event status successfully closed / completed by organizer'
+    );
+
     console.log('\n======================================================');
     console.log(`🏁 TEST EXECUTION COMPLETE: ${passed} PASSED, ${failed} FAILED`);
     console.log('======================================================\n');

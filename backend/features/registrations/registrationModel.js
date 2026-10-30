@@ -99,7 +99,7 @@ const registrationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['REGISTERED', 'WAITLISTED', 'CANCELLED', 'ATTENDED'],
+      enum: ['REGISTERED', 'CONFIRMED', 'WAITLISTED', 'CANCELLED', 'ATTENDED'],
       default: 'REGISTERED',
       index: true,
     },

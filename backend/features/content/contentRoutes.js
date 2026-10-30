@@ -3,6 +3,7 @@ import {
   getContentByKey,
   updateContentByKey,
   uploadContentImage,
+  sendTestEmailHandler,
 } from './contentController.js';
 import { validateUpdateContent } from './validateContent.js';
 import { requireSuperAdmin } from '../../middleware/authMiddleware.js';
@@ -33,6 +34,9 @@ router.post(
   flexibleImageUpload,
   WrapAsync(uploadContentImage)
 );
+
+// Send test email (Superadmin only)
+router.post('/send-test-email', requireSuperAdmin, WrapAsync(sendTestEmailHandler));
 
 router.put('/:key', requireSuperAdmin, validateUpdateContent, WrapAsync(updateContentByKey));
 

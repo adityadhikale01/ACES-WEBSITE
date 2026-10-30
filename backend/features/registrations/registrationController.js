@@ -3,6 +3,7 @@ import Event from '../events/eventModel.js';
 import PaymentProof from '../payments/paymentModel.js';
 import { saveUploadedFile } from '../../utils/fileStorage.js';
 import { AppError } from '../../utils/AppError.js';
+import { sendFreeEventRegistrationEmail } from '../../utils/emailService.js';
 
 export const registerForEvent = async (req, res, next) => {
   const body = req.validatedBody || req.body || {};
@@ -168,13 +169,35 @@ export const registerForEvent = async (req, res, next) => {
     }
   }
 
+  const whatsappGroupUrl = event.whatsappGroupUrl || event.whatsappLink || 'https://chat.whatsapp.com/ACES-KBTCOE-Events';
+
   if (!isPaid) {
     await Event.findByIdAndUpdate(eventId, {
       $inc: { registrationCount: 1, registeredCount: 1 },
     });
-  }
 
-  const whatsappGroupUrl = event.whatsappGroupUrl || event.whatsappLink || 'https://chat.whatsapp.com/ACES-KBTCOE-Events';
+    // Send confirmation pass email immediately for free event registration
+    sendFreeEventRegistrationEmail({
+      to: regEmail,
+      studentName: regName,
+      eventTitle: event.title,
+      ticketId,
+      eventDate: event.startDate
+        ? new Date(event.startDate).toLocaleDateString('en-IN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : '',
+      timeString: event.timeString || '',
+      venue: event.venue || 'Seminar Hall, KBTCOE',
+      whatsappGroupUrl,
+      isGroupRegistration: Boolean(isGroupRegistration || parsedGroupMembers.length > 0),
+      groupName: groupName || (isGroupRegistration ? `${regName}'s Team` : ''),
+      groupMembers: parsedGroupMembers,
+    }).catch((err) => console.error('[FreeEventEmail Error]', err.message));
+  }
 
   res.status(201).json({
     success: true,

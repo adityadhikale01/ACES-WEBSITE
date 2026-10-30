@@ -1,6 +1,7 @@
 import SiteContent from './contentModel.js';
 import { AppError } from '../../utils/AppError.js';
 import { saveUploadedFile } from '../../utils/fileStorage.js';
+import { clearTransporterCache, sendTestEmail } from '../../utils/emailService.js';
 
 export const getContentByKey = async (req, res) => {
   const { key } = req.params;
@@ -42,11 +43,42 @@ export const updateContentByKey = async (req, res) => {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
+  if (key === 'email_settings') {
+    clearTransporterCache();
+  }
+
   res.status(200).json({
     success: true,
     message: `Content for ${key} updated successfully`,
     data: content.data,
   });
+};
+
+export const sendTestEmailHandler = async (req, res, next) => {
+  const { to, recipient, customSubject, customMessage, message } = req.body;
+  const targetEmail = to || recipient;
+  if (!targetEmail) {
+    return next(new AppError('Recipient email address (to) is required', 400));
+  }
+
+  try {
+    const result = await sendTestEmail({
+      to: targetEmail,
+      customSubject,
+      customMessage: customMessage || message,
+    });
+    if (!result.success) {
+      return next(new AppError(result.error || 'Failed to send test email. Check your SMTP settings.', 500));
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Test email sent successfully to ${targetEmail}`,
+      info: result.info,
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const uploadContentImage = async (req, res, next) => {
