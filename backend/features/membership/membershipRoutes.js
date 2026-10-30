@@ -1,22 +1,21 @@
 import express from 'express';
 import {
   submitApplication,
+  getMyApplication,
   getAllApplications,
   reviewApplication,
 } from './membershipController.js';
-import {
-  validateApplyMembership,
-  validateReviewMembership,
-} from './validateMembership.js';
-import { requireMembershipAdmin } from '../../middleware/authMiddleware.js';
+import { authMiddleware, optionalAuth, requireMembershipAdmin } from '../../middleware/authMiddleware.js';
 import { WrapAsync } from '../../utils/WrapAsync.js';
 
 const router = express.Router();
 
-router.post('/', validateApplyMembership, WrapAsync(submitApplication));
+router.post('/', optionalAuth, WrapAsync(submitApplication));
+router.get('/my', authMiddleware, WrapAsync(getMyApplication));
 
 // Admin routes (Superadmin, President)
 router.get('/', requireMembershipAdmin, WrapAsync(getAllApplications));
-router.patch('/:id/review', requireMembershipAdmin, validateReviewMembership, WrapAsync(reviewApplication));
+router.get('/all', requireMembershipAdmin, WrapAsync(getAllApplications));
+router.patch('/:id/review', requireMembershipAdmin, WrapAsync(reviewApplication));
 
 export default router;

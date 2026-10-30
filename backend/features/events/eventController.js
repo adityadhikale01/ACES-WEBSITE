@@ -12,20 +12,27 @@ const slugify = (text) => {
 };
 
 export const getAllEvents = async (req, res) => {
-  const { category, isPaid, status = 'PUBLISHED', search } = req.query;
+  const { category, isPaid, status, search, featured } = req.query;
   const filter = {};
 
-  if (category) filter.category = category;
-  if (isPaid !== undefined) filter.isPaid = isPaid === 'true';
-  if (status && status !== 'ALL') filter.status = status;
+  if (category && category !== 'ALL') filter.category = category;
+  if (isPaid !== undefined && isPaid !== '') filter.isPaid = isPaid === 'true';
+  if (status && status !== 'ALL') {
+    filter.status = status;
+  } else if (!status) {
+    filter.status = 'PUBLISHED';
+  }
+  if (featured === 'true') filter.isFeatured = true;
+
   if (search) {
     filter.$or = [
       { title: { $regex: search, $options: 'i' } },
       { shortDescription: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
     ];
   }
 
-  const events = await Event.find(filter).sort({ eventDate: 1 });
+  const events = await Event.find(filter).sort({ startDate: 1, eventDate: 1 });
 
   res.status(200).json({
     success: true,
@@ -36,9 +43,11 @@ export const getAllEvents = async (req, res) => {
 
 export const getEventBySlug = async (req, res, next) => {
   const { slug } = req.params;
-  const event = await Event.findOne({ slug });
+  const event = await Event.findOne({
+    $or: [{ slug }, { _id: slug.match(/^[0-9a-fA-F]{24}$/) ? slug : null }],
+  });
   if (!event) {
-    return next(new AppError(`Event not found with slug: ${slug}`, 404));
+    return next(new AppError(`Event not found with slug/id: ${slug}`, 404));
   }
 
   res.status(200).json({
@@ -56,9 +65,18 @@ export const createEvent = async (req, res, next) => {
     return next(new AppError('An event with this title or slug already exists', 409));
   }
 
+  const fee = eventData.fee !== undefined ? eventData.fee : eventData.feeAmountInPaise || 0;
+  const startDate = eventData.startDate || eventData.eventDate || new Date();
+
   const newEvent = await Event.create({
     ...eventData,
     slug,
+    fee,
+    feeAmountInPaise: fee,
+    startDate,
+    eventDate: startDate,
+    capacity: eventData.capacity !== undefined ? eventData.capacity : eventData.maxCapacity,
+    maxCapacity: eventData.maxCapacity !== undefined ? eventData.maxCapacity : eventData.capacity,
     createdBy: req.userId,
   });
 
@@ -81,6 +99,11 @@ export const updateEvent = async (req, res, next) => {
   if (eventData.title && eventData.title !== event.title && !eventData.slug) {
     eventData.slug = slugify(eventData.title);
   }
+
+  if (eventData.fee !== undefined) eventData.feeAmountInPaise = eventData.fee;
+  if (eventData.feeAmountInPaise !== undefined) eventData.fee = eventData.feeAmountInPaise;
+  if (eventData.startDate) eventData.eventDate = eventData.startDate;
+  if (eventData.eventDate) eventData.startDate = eventData.eventDate;
 
   const updated = await Event.findByIdAndUpdate(id, eventData, {
     new: true,

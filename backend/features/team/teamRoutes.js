@@ -6,35 +6,35 @@ import {
   deleteMember,
   reorderMembers,
   uploadTeamPhoto,
-  getAllDesignations,
-  createDesignation,
-  updateDesignation,
-  deleteDesignation,
 } from './teamController.js';
-import {
-  validateCreateMember,
-  validateUpdateMember,
-  validateDesignation,
-} from './validateTeam.js';
 import { requireTeamAdmin } from '../../middleware/authMiddleware.js';
-import { memoryUpload } from '../../middleware/uploadMiddleware.js';
+import { imageUpload } from '../../middleware/uploadMiddleware.js';
 import { WrapAsync } from '../../utils/WrapAsync.js';
 
 const router = express.Router();
 
 router.get('/', WrapAsync(getAllMembers));
-router.get('/designations', WrapAsync(getAllDesignations));
+router.get('/admin/all', requireTeamAdmin, WrapAsync(getAllMembers));
+
+// Flexible photo upload for team members ('photo', 'image', 'file')
+const flexiblePhotoUpload = (req, res, next) => {
+  imageUpload.any()(req, res, (err) => {
+    if (err) return next(err);
+    if (req.files && req.files.length > 0) {
+      req.file = req.files.find((f) =>
+        ['photo', 'image', 'file', 'avatar'].includes(f.fieldname)
+      ) || req.files[0];
+    }
+    next();
+  });
+};
 
 // Team Admin routes (Superadmin, President)
-router.post('/upload-photo', requireTeamAdmin, memoryUpload.single('photo'), WrapAsync(uploadTeamPhoto));
-router.post('/', requireTeamAdmin, validateCreateMember, WrapAsync(createMember));
-router.put('/:id', requireTeamAdmin, validateUpdateMember, WrapAsync(updateMember));
+router.post('/upload-photo', requireTeamAdmin, flexiblePhotoUpload, WrapAsync(uploadTeamPhoto));
+router.post('/', requireTeamAdmin, WrapAsync(createMember));
+router.put('/:id', requireTeamAdmin, WrapAsync(updateMember));
 router.delete('/:id', requireTeamAdmin, WrapAsync(deleteMember));
+router.patch('/reorder', requireTeamAdmin, WrapAsync(reorderMembers));
 router.post('/reorder', requireTeamAdmin, WrapAsync(reorderMembers));
-
-// Designation Admin routes
-router.post('/designations', requireTeamAdmin, validateDesignation, WrapAsync(createDesignation));
-router.put('/designations/:id', requireTeamAdmin, validateDesignation, WrapAsync(updateDesignation));
-router.delete('/designations/:id', requireTeamAdmin, WrapAsync(deleteDesignation));
 
 export default router;

@@ -83,6 +83,7 @@ export const requireTeamAdmin = [authMiddleware, requireRoles('SUPER_ADMIN', 'AD
 export const requireActivityAdmin = [authMiddleware, requireRoles('SUPER_ADMIN', 'ADMIN', 'FACULTY')];
 export const requireMembershipAdmin = [authMiddleware, requireRoles('SUPER_ADMIN', 'ADMIN', 'PRESIDENT')];
 export const requireContactAdmin = [authMiddleware, requireRoles('SUPER_ADMIN', 'ADMIN', 'PRESIDENT')];
+export const requireContentAdmin = [authMiddleware, requireRoles('SUPER_ADMIN', 'ADMIN', 'PRESIDENT')];
 export const requireAdmin = [authMiddleware, requireRoles('SUPER_ADMIN', 'ADMIN', 'FACULTY', 'PRESIDENT')];
 
 export default authMiddleware;

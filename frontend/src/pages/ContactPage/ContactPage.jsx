@@ -1,144 +1,195 @@
-import React from 'react';
-import { Form, useActionData, useNavigation } from 'react-router-dom';
-import { Mail, MapPin, CheckCircle, AlertCircle, Send } from 'lucide-react';
-
-export function ContactPage() {
-  const actionData = useActionData();
-  const navigation = useNavigation();
-  const isSubmitting = navigation.state === 'submitting';
-
-  return (
-    <div className="pt-28 pb-20 min-h-screen">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        {/* Header */}
-        <div className="max-w-3xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-electric-cyan">
-            <span>GET IN TOUCH</span>
+import { useState } from "react";
+import { Mail, Phone, MapPin, Send, CheckCircle2, AlertCircle, MessageSquare } from "lucide-react";
+import { api } from "../../services/api.js";
+export const ContactPage = () => {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState(null);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      setError(null);
+      const res = await api.contact.submit({ name, email, subject, message });
+      if (res.success) {
+        setSuccess(true);
+        setName("");
+        setEmail("");
+        setSubject("");
+        setMessage("");
+      }
+    } catch (err) {
+      setError(err.message || "Failed to submit contact message");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return <div className="pt-28 pb-20 min-h-screen">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-3xl space-y-4 mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-electric-cyan font-semibold">
+            <MessageSquare size={13} />
+            <span>GET IN TOUCH WITH ACES</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            Contact <span className="text-gradient">ACES KBTCOE.</span>
+          <h1 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-tight">
+            Connect & <span className="text-gradient">Collaborate</span>
           </h1>
-          <p className="text-sm sm:text-base text-slate-400">
-            Have questions regarding upcoming workshops, event registration, sponsorship, or general inquiries? Send a message to our committee coordinators.
+          <p className="text-base text-slate-300 leading-relaxed font-normal">
+            Have questions about upcoming workshops, event partnerships, club sponsorship, or departmental activities? Send us a message and our team will get back to you.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          {/* Info Card */}
-          <div className="lg:col-span-5 space-y-6 p-8 rounded-3xl bg-navy-850/80 border border-slate-800">
-            <h3 className="text-lg font-bold text-white">Department Information</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {
+    /* Left Column: Verified Contact Details & Campus Map Info */
+  }
+          <div className="lg:col-span-5 space-y-6">
+            <div className="glass-card p-6 rounded-3xl border border-white/10 space-y-6">
+              <h3 className="text-base font-bold text-white border-b border-white/5 pb-3">
+                Official Club Coordinates
+              </h3>
 
-            <div className="space-y-4 text-xs text-slate-300">
-              <div className="flex items-start gap-3">
-                <MapPin size={18} className="text-electric-cyan flex-shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  <strong className="text-white">Department of Computer Engineering</strong>
-                  <br />
-                  MVPS's Karmaveer Adv. Baburao Ganpatrao Thakare College of Engineering,
-                  <br />
-                  Udoji Maratha Boarding Campus, Gangapur Road, Nashik - 422013, Maharashtra.
+              <div className="space-y-4 text-xs">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-electric-cyan/15 text-electric-cyan flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <MapPin size={16} />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white block mb-0.5">Department Office</span>
+                    <p className="text-slate-400 leading-relaxed">
+                      ACES Cabin, Department of Computer Engineering, MVPS's KBT College of Engineering,
+                      Udoji Maratha Boarding Campus, Gangapur Road, Nashik - 422013, Maharashtra.
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <Mail size={18} className="text-electric-cyan flex-shrink-0" />
-                <div>
-                  <div className="text-slate-400">Official Committee Email</div>
-                  <div className="font-semibold text-white">aces.kbtcoe@gmail.com</div>
+                <div className="flex items-start gap-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-electric-blue/15 text-electric-blue flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Mail size={16} />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white block mb-0.5">Official Email</span>
+                    <a
+    href="mailto:aces.kbtcoe@gmail.com"
+    className="text-slate-300 hover:text-electric-cyan transition-colors"
+  >
+                      aces.kbtcoe@gmail.com
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Phone size={16} />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white block mb-0.5">College Helpline</span>
+                    <span className="text-slate-400">+91 253 2571439 / +91 253 2582891</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2 text-xs">
-              <div className="font-semibold text-white">Office Hours</div>
-              <p className="text-slate-400 leading-relaxed">
-                Monday to Friday: 9:00 AM – 5:00 PM
-                <br />
-                Saturday: 9:00 AM – 1:00 PM
+            <div className="p-6 rounded-3xl bg-navy-850 border border-white/10 space-y-3">
+              <h4 className="text-white font-bold text-sm">Working Hours</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Monday to Friday: 9:30 AM to 5:00 PM <br />
+                Saturday: 9:30 AM to 1:30 PM (Except official holidays)
               </p>
             </div>
           </div>
 
-          {/* Contact Form */}
-          <div className="lg:col-span-7 p-8 sm:p-10 rounded-3xl bg-navy-850/80 border border-slate-800">
-            {actionData?.error && (
-              <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400 flex items-center gap-2">
-                <AlertCircle size={16} />
-                <span>{actionData.error}</span>
-              </div>
-            )}
+          {
+    /* Right Column: Working Contact Form */
+  }
+          <div className="lg:col-span-7">
+            <div className="glass-card p-8 rounded-3xl border border-white/10">
+              <h3 className="text-xl font-bold text-white mb-2">Send Us a Direct Message</h3>
+              <p className="text-xs text-slate-400 mb-6">
+                Your message will be sent directly to the club executive committee.
+              </p>
 
-            {actionData?.success ? (
-              <div className="p-8 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-3">
-                <CheckCircle size={32} className="text-emerald-400 mx-auto" />
-                <h3 className="text-lg font-bold text-white">Inquiry Received!</h3>
-                <p className="text-xs text-slate-400">
-                  {actionData.message || 'Thank you for reaching out. We will get back to you shortly.'}
-                </p>
-              </div>
-            ) : (
-              <Form method="post" className="space-y-4 text-xs">
+              {success && <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs mb-6 flex items-center gap-2">
+                  <CheckCircle2 size={16} />
+                  <span>Thank you! Your inquiry has been sent to ACES KBTCOE. We will respond soon.</span>
+                </div>}
+
+              {error && <div className="p-4 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs mb-6 flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  <span>{error}</span>
+                </div>}
+
+              <form onSubmit={handleSubmit} className="space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-slate-300 font-semibold">Your Name *</label>
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1.5">Your Name *</label>
                     <input
-                      type="text"
-                      name="name"
-                      required
-                      placeholder="e.g. Rahul Patil"
-                      className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                    />
+    type="text"
+    required
+    placeholder="e.g. Atharva Patil"
+    value={name}
+    onChange={(e) => setName(e.target.value)}
+    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-slate-300 font-semibold">Your Email *</label>
+                  <div>
+                    <label className="block text-slate-300 font-medium mb-1.5">Your Email *</label>
                     <input
-                      type="email"
-                      name="email"
-                      required
-                      placeholder="e.g. rahul@example.com"
-                      className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                    />
+    type="email"
+    required
+    placeholder="e.g. name@example.com"
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-slate-300 font-semibold">Subject *</label>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1.5">Subject *</label>
                   <input
-                    type="text"
-                    name="subject"
-                    required
-                    placeholder="e.g. Workshop Registration Query"
-                    className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                  />
+    type="text"
+    required
+    placeholder="e.g. Query regarding CodeRush 2026 / Hackathon"
+    value={subject}
+    onChange={(e) => setSubject(e.target.value)}
+    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-slate-300 font-semibold">Message *</label>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1.5">Message Content *</label>
                   <textarea
-                    name="message"
-                    required
-                    rows={5}
-                    placeholder="Describe your inquiry or feedback..."
-                    className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                  />
+    rows={4}
+    required
+    placeholder="Write your query or message here (min 10 characters)..."
+    value={message}
+    onChange={(e) => setMessage(e.target.value)}
+    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white font-bold text-xs uppercase tracking-wider hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-electric-blue/20 flex items-center justify-center gap-2"
-                >
-                  <Send size={15} />
-                  <span>{isSubmitting ? 'Sending Message...' : 'Send Inquiry'}</span>
-                </button>
-              </Form>
-            )}
+                <div className="pt-2">
+                  <button
+    type="submit"
+    disabled={submitting}
+    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white font-bold text-xs shadow-lg shadow-electric-blue/25 hover:shadow-electric-blue/40 transition-all flex items-center justify-center gap-2"
+  >
+                    <Send size={14} />
+                    <span>{submitting ? "Sending Message..." : "Send Message to ACES"}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    </div>;
+};
 
 export default ContactPage;

@@ -15,6 +15,7 @@ router.get('/stats', requireAdmin, WrapAsync(getSystemStats));
 
 // User role management strictly reserved to Superadmin
 router.get('/users', requireSuperAdmin, WrapAsync(getAllUsers));
+router.patch('/users/:id', requireSuperAdmin, WrapAsync(updateUserRole));
 router.patch('/users/:id/role', requireSuperAdmin, WrapAsync(updateUserRole));
 router.delete('/users/:id', requireSuperAdmin, WrapAsync(deleteUser));
 

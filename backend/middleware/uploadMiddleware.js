@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { cloudinary, isCloudinaryConfigured } from '../config/cloudinary.js';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { AppError } from '../utils/AppError.js';
 
 const localUploadsDir = path.resolve(process.cwd(), 'uploads/public/media');
 if (!fs.existsSync(localUploadsDir)) {
@@ -30,14 +31,30 @@ const cloudinaryStorage = isCloudinaryConfigured
     })
   : null;
 
+// Multi-media uploader for Gallery
 export const uploadMedia = multer({
   storage: cloudinaryStorage || localDiskStorage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
       cb(null, true);
     } else {
-      cb(new Error('Only image and video files are supported'), false);
+      cb(new AppError('Only image and video files are supported', 400), false);
+    }
+  },
+});
+
+// Dedicated high-capacity image uploader (Team Photos, Group Photos, Logos, CMS branding)
+export const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit for high-res DSLR and smartphone photos
+  fileFilter: (req, file, cb) => {
+    const isImageMime = file.mimetype.startsWith('image/');
+    const isImageExt = /\.(jpg|jpeg|png|webp|gif|svg|avif|heic|bmp)$/i.test(file.originalname || '');
+    if (isImageMime || isImageExt) {
+      cb(null, true);
+    } else {
+      cb(new AppError('Only valid image files (JPG, PNG, WEBP, GIF, SVG, AVIF) are accepted', 400), false);
     }
   },
 });
@@ -45,12 +62,14 @@ export const uploadMedia = multer({
 // Memory storage for payment proof screenshot processing & encryption
 export const memoryUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    const isImageMime = file.mimetype.startsWith('image/');
+    const isImageExt = /\.(jpg|jpeg|png|webp|pdf)$/i.test(file.originalname || '');
+    if (isImageMime || isImageExt) {
       cb(null, true);
     } else {
-      cb(new Error('Only image receipts (PNG, JPG, WEBP) are accepted'), false);
+      cb(new AppError('Only image receipts (PNG, JPG, WEBP) are accepted', 400), false);
     }
   },
 });

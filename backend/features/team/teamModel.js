@@ -7,10 +7,24 @@ const teamMemberSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    role: {
+      type: String,
+      trim: true,
+      default: 'Committee Member',
+    },
     designation: {
       type: String,
-      required: true,
       trim: true,
+    },
+    designationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Designation',
+    },
+    tier: {
+      type: String,
+      enum: ['FACULTY', 'PRESIDENT', 'VICE_PRESIDENT', 'EXECUTIVE', 'COMMITTEE'],
+      default: 'COMMITTEE',
+      index: true,
     },
     category: {
       type: String,
@@ -18,9 +32,17 @@ const teamMemberSchema = new mongoose.Schema(
       default: 'COMMITTEE',
       index: true,
     },
+    department: {
+      type: String,
+      default: 'Computer Engineering',
+    },
+    academicYear: {
+      type: String,
+      default: '2026-27',
+    },
     photoUrl: {
       type: String,
-      default: '/assets/team/uday-dhikale.jpg',
+      default: '/assets/aces-team.jpg',
     },
     email: {
       type: String,
@@ -31,7 +53,15 @@ const teamMemberSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    linkedinUrl: {
+      type: String,
+      trim: true,
+    },
     github: {
+      type: String,
+      trim: true,
+    },
+    githubUrl: {
       type: String,
       trim: true,
     },
@@ -49,9 +79,15 @@ const teamMemberSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
-    academicYear: {
-      type: String,
-      default: '2026-27',
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    isPublished: {
+      type: Boolean,
+      default: true,
+      index: true,
     },
   },
   {

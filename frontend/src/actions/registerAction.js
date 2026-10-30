@@ -2,7 +2,7 @@ import { api } from '../services/api.js';
 
 export async function registerAction({ request }) {
   const formData = await request.formData();
-  const name = formData.get('name');
+  const name = formData.get('name') || formData.get('fullName');
   const email = formData.get('email');
   const password = formData.get('password');
   const department = formData.get('department') || 'Computer Engineering';
@@ -11,12 +11,13 @@ export async function registerAction({ request }) {
   const phone = formData.get('phone') || '';
 
   if (!name || !email || !password) {
-    return { error: 'Name, email, and password are required.' };
+    return { error: 'Full name, email, and password are required.' };
   }
 
   try {
     const res = await api.auth.register({
       name,
+      fullName: name,
       email,
       password,
       department,

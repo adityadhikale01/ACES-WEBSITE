@@ -1,36 +1,60 @@
 import Joi from 'joi';
 
 export const createEventSchema = Joi.object({
-  title: Joi.string().trim().min(3).max(200).required(),
+  title: Joi.string().trim().min(2).max(200).required(),
   slug: Joi.string().trim().lowercase(),
-  shortDescription: Joi.string().trim().min(5).max(300).required(),
-  description: Joi.string().trim().min(10).required(),
-  category: Joi.string()
-    .valid('WORKSHOP', 'SEMINAR', 'COMPETITION', 'HACKATHON', 'EXPERT_TALK', 'CULTURAL', 'OTHER')
-    .default('WORKSHOP'),
-  eventDate: Joi.date().iso().required(),
+  subtitle: Joi.string().trim().allow('', null),
+  shortDescription: Joi.string().trim().allow('', null),
+  description: Joi.string().trim().min(5).required(),
+  category: Joi.string().default('WORKSHOP'),
+  startDate: Joi.date().iso().allow(null),
+  eventDate: Joi.date().iso().allow(null),
   endDate: Joi.date().iso().allow(null),
+  timeString: Joi.string().allow('', null),
   registrationDeadline: Joi.date().iso().allow(null),
   venue: Joi.string().trim().default('Dept. of Computer Engineering, MVPS KBTCOE Nashik'),
   isOnline: Joi.boolean().default(false),
-  onlineMeetingUrl: Joi.string().uri().allow('', null),
+  meetingLink: Joi.string().allow('', null),
+  onlineMeetingUrl: Joi.string().allow('', null),
   posterUrl: Joi.string().allow('', null),
   isPaid: Joi.boolean().default(false),
+  fee: Joi.number().integer().min(0).default(0),
   feeAmountInPaise: Joi.number().integer().min(0).default(0),
+  paymentInstructions: Joi.string().allow('', null),
+  paymentUpiId: Joi.string().trim().allow('', null),
   upiId: Joi.string().trim().allow('', null),
+  paymentQrUrl: Joi.string().allow('', null),
   upiQrCodeUrl: Joi.string().allow('', null),
-  maxCapacity: Joi.number().integer().min(1).default(100),
-  status: Joi.string()
-    .valid('DRAFT', 'PUBLISHED', 'REGISTRATION_CLOSED', 'COMPLETED', 'CANCELLED')
-    .default('PUBLISHED'),
+  refundPolicy: Joi.string().allow('', null),
+  paymentDeadline: Joi.date().iso().allow(null),
+  capacity: Joi.number().integer().allow(null),
+  maxCapacity: Joi.number().integer().allow(null),
+  registeredCount: Joi.number().integer().default(0),
+  registrationCount: Joi.number().integer().default(0),
+  eligibility: Joi.string().valid('OPEN_TO_ALL', 'MEMBERS_ONLY', 'DEPARTMENT_ONLY').default('OPEN_TO_ALL'),
+  status: Joi.string().default('PUBLISHED'),
+  isFeatured: Joi.boolean().default(false),
+  organizerInfo: Joi.string().allow('', null),
   tags: Joi.array().items(Joi.string().trim()).default([]),
   prerequisites: Joi.array().items(Joi.string().trim()).default([]),
   learningOutcomes: Joi.array().items(Joi.string().trim()).default([]),
   facultyCoordinators: Joi.array().items(Joi.object({ name: Joi.string(), designation: Joi.string() })).default([]),
   studentCoordinators: Joi.array().items(Joi.object({ name: Joi.string(), phone: Joi.string(), role: Joi.string() })).default([]),
+  whatsappGroupUrl: Joi.string().allow('', null),
+  whatsappLink: Joi.string().allow('', null),
+  isGroupEvent: Joi.boolean().default(false),
+  maxGroupSize: Joi.number().integer().min(1).max(20).default(4),
+  minGroupSize: Joi.number().integer().min(1).default(1),
+  groupMembers: Joi.array().items(Joi.object({
+    name: Joi.string(),
+    email: Joi.string().allow('', null),
+    phone: Joi.string().allow('', null),
+    prn: Joi.string().allow('', null),
+    role: Joi.string().allow('', null)
+  })).default([]),
 });
 
 export const updateEventSchema = createEventSchema.fork(
-  ['title', 'shortDescription', 'description', 'eventDate'],
+  ['title', 'description'],
   (schema) => schema.optional()
 );

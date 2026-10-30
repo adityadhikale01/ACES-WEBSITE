@@ -30,17 +30,23 @@ export const getAllMessages = async (req, res) => {
 
 export const markResolved = async (req, res, next) => {
   const { id } = req.params;
-  const { isResolved } = req.body;
+  const { isResolved, isRead, notes } = req.body;
 
-  const msg = await ContactMessage.findByIdAndUpdate(
-    id,
-    {
-      isResolved: Boolean(isResolved),
-      resolvedAt: isResolved ? new Date() : null,
-      isRead: true,
-    },
-    { new: true }
-  );
+  const update = {};
+  if (isResolved !== undefined) {
+    update.isResolved = Boolean(isResolved);
+    update.resolvedAt = isResolved ? new Date() : null;
+  }
+  if (isRead !== undefined) {
+    update.isRead = Boolean(isRead);
+  } else {
+    update.isRead = true;
+  }
+  if (notes !== undefined) {
+    update.notes = notes;
+  }
+
+  const msg = await ContactMessage.findByIdAndUpdate(id, update, { new: true });
 
   if (!msg) {
     return next(new AppError('Message not found', 404));
@@ -48,7 +54,8 @@ export const markResolved = async (req, res, next) => {
 
   res.status(200).json({
     success: true,
-    message: `Message marked as ${isResolved ? 'resolved' : 'pending'}`,
+    message: 'Message status updated',
     data: msg,
+    messageItem: msg,
   });
 };

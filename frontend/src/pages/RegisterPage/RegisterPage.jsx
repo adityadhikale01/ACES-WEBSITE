@@ -1,131 +1,164 @@
-import React, { useEffect } from 'react';
-import { Form, useActionData, useNavigation, useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { UserPlus, AlertCircle } from 'lucide-react';
-import { useAuth } from '../../auth/useAuth.js';
-
-export function RegisterPage() {
-  const actionData = useActionData();
-  const navigation = useNavigation();
-  const [searchParams] = useSearchParams();
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { UserPlus, User, Mail, Lock, Phone, AlertCircle, ArrowRight } from "lucide-react";
+import { useAuth } from "../../auth/authContext.jsx";
+export const RegisterPage = () => {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [department, setDepartment] = useState("Computer Engineering");
+  const [academicYear, setAcademicYear] = useState("SE");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const { register } = useAuth();
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
-
-  const isSubmitting = navigation.state === 'submitting';
-  const redirectPath = searchParams.get('redirect') || '/';
-
-  useEffect(() => {
-    if (actionData?.success && actionData?.user && actionData?.token) {
-      login(actionData.user, actionData.token);
-      navigate(redirectPath, { replace: true });
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      setError(null);
+      await register({
+        name: fullName,
+        fullName,
+        email,
+        password,
+        phone,
+        department,
+        academicYear
+      });
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
-  }, [actionData, login, navigate, redirectPath]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate(redirectPath, { replace: true });
-    }
-  }, [isAuthenticated, navigate, redirectPath]);
-
-  return (
-    <div className="pt-28 pb-20 min-h-screen flex items-center justify-center">
-      <div className="max-w-md w-full px-4 sm:px-6 space-y-8">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-electric-cyan/10 border border-electric-cyan/30 text-electric-cyan flex items-center justify-center mx-auto mb-4">
-            <UserPlus size={24} />
+  };
+  return <div className="pt-28 pb-20 min-h-screen flex items-center justify-center px-4 sm:px-6">
+      <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="w-full max-w-lg"
+  >
+        <div className="glass-card p-8 rounded-3xl border border-white/10 shadow-2xl relative">
+          <div className="text-center space-y-2 mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-electric-blue/15 border border-electric-blue/30 text-electric-cyan flex items-center justify-center mx-auto mb-3">
+              <UserPlus size={22} />
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Create Student Account</h1>
+            <p className="text-xs text-slate-400">
+              Join ACES KBTCOE to register for events, view memberships, and join workshops.
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white">Create Student Account</h1>
-          <p className="text-xs text-slate-400">
-            Join the ACES portal to register for departmental events and track attendance.
-          </p>
-        </div>
 
-        {actionData?.error && (
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400 flex items-center gap-2">
-            <AlertCircle size={16} />
-            <span>{actionData.error}</span>
-          </div>
-        )}
+          {error && <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs mb-6 flex items-center gap-2">
+              <AlertCircle size={15} className="flex-shrink-0" />
+              <span>{error}</span>
+            </div>}
 
-        <div className="p-8 rounded-3xl bg-navy-850/90 border border-slate-800">
-          <Form method="post" className="space-y-4 text-xs">
-            <div className="space-y-1.5">
-              <label className="text-slate-300 font-semibold">Full Name *</label>
-              <input
-                type="text"
-                name="name"
-                required
-                placeholder="e.g. Shraddha Patil"
-                className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-              />
+          <form onSubmit={handleRegister} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-slate-300 font-medium mb-1.5">Full Name *</label>
+              <div className="relative">
+                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+    type="text"
+    required
+    placeholder="e.g. Atharva Patil"
+    value={fullName}
+    onChange={(e) => setFullName(e.target.value)}
+    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-slate-300 font-semibold">Email Address *</label>
-              <input
-                type="email"
-                name="email"
-                required
-                placeholder="e.g. shraddha@kbtcoe.in"
-                className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">Email Address *</label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+    type="email"
+    required
+    placeholder="student@kbtcoe.org"
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">Password (Min 6 chars) *</label>
+                <div className="relative">
+                  <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+    type="password"
+    required
+    minLength={6}
+    placeholder="••••••••"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-slate-300 font-semibold">Password *</label>
-              <input
-                type="password"
-                name="password"
-                required
-                placeholder="At least 6 characters"
-                className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">Phone (Optional)</label>
+                <div className="relative">
+                  <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+    type="tel"
+    placeholder="+91 98765 43210"
+    value={phone}
+    onChange={(e) => setPhone(e.target.value)}
+    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
+  />
+                </div>
+              </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-slate-300 font-semibold">Academic Year</label>
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">Academic Year *</label>
                 <select
-                  name="academicYear"
-                  defaultValue="SE"
-                  className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-electric-blue"
-                >
+    value={academicYear}
+    onChange={(e) => setAcademicYear(e.target.value)}
+    className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white focus:outline-none focus:border-electric-cyan"
+  >
                   <option value="FE">First Year (FE)</option>
                   <option value="SE">Second Year (SE)</option>
                   <option value="TE">Third Year (TE)</option>
                   <option value="BE">Final Year (BE)</option>
+                  <option value="ALUMNI">Alumni</option>
+                  <option value="FACULTY">Faculty</option>
                 </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-slate-300 font-semibold">PRN</label>
-                <input
-                  type="text"
-                  name="prn"
-                  placeholder="e.g. 7210..."
-                  className="w-full bg-navy-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white font-bold text-xs uppercase tracking-wider hover:from-blue-500 hover:to-indigo-500 transition-all shadow-md shadow-electric-blue/20 flex items-center justify-center gap-2 pt-3"
-            >
-              <span>{isSubmitting ? 'Creating Account...' : 'Register'}</span>
-            </button>
-          </Form>
+            <div className="pt-2">
+              <button
+    type="submit"
+    disabled={loading}
+    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white font-bold text-xs shadow-lg shadow-electric-blue/30 hover:shadow-electric-blue/50 transition-all flex items-center justify-center gap-2"
+  >
+                <span>{loading ? "Creating Account..." : "Complete Account Registration"}</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-800 text-center text-xs text-slate-400">
-            Already have an account?{' '}
-            <Link to="/login" className="text-electric-cyan hover:underline font-semibold">
-              Sign In
+          <div className="mt-6 pt-6 border-t border-white/5 text-center text-xs text-slate-400">
+            Already have an account?{" "}
+            <Link to="/login" className="font-semibold text-electric-cyan hover:underline">
+              Sign in here
             </Link>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      </motion.div>
+    </div>;
+};
 
 export default RegisterPage;

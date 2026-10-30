@@ -15,4 +15,26 @@ if (isCloudinaryConfigured) {
   });
 }
 
+/**
+ * Uploads a file buffer directly to Cloudinary using upload_stream.
+ */
+export const uploadBufferToCloudinary = (buffer, folder = 'aces_kbtcoe') => {
+  return new Promise((resolve, reject) => {
+    if (!isCloudinaryConfigured) {
+      return reject(new Error('Cloudinary is not configured'));
+    }
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: 'auto',
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    uploadStream.end(buffer);
+  });
+};
+
 export { cloudinary, isCloudinaryConfigured };

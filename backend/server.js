@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -16,6 +17,7 @@ import eventRoutes from './features/events/eventRoutes.js';
 import registrationRoutes from './features/registrations/registrationRoutes.js';
 import paymentRoutes from './features/payments/paymentRoutes.js';
 import teamRoutes from './features/team/teamRoutes.js';
+import designationRoutes from './features/team/designationRoutes.js';
 import galleryRoutes from './features/gallery/galleryRoutes.js';
 import activityRoutes from './features/activities/activityRoutes.js';
 import membershipRoutes from './features/membership/membershipRoutes.js';
@@ -44,9 +46,27 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // Static folders
-const uploadsPath = path.resolve(__dirname, '../uploads');
+const rootUploadsPath = path.resolve(__dirname, '../uploads');
+const backendUploadsPath = path.resolve(__dirname, 'uploads');
 const assetsPath = path.resolve(__dirname, '../assets');
-app.use('/uploads', express.static(uploadsPath));
+
+[
+  rootUploadsPath,
+  backendUploadsPath,
+  path.join(rootUploadsPath, 'public/branding'),
+  path.join(rootUploadsPath, 'public/team'),
+  path.join(rootUploadsPath, 'public/media'),
+  path.join(backendUploadsPath, 'public/branding'),
+  path.join(backendUploadsPath, 'public/team'),
+  path.join(backendUploadsPath, 'public/media'),
+].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+app.use('/uploads', express.static(rootUploadsPath));
+app.use('/uploads', express.static(backendUploadsPath));
 app.use('/assets', express.static(assetsPath));
 
 // Health Check
@@ -65,11 +85,7 @@ app.use('/api/v1/events', eventRoutes);
 app.use('/api/v1/registrations', registrationRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/team', teamRoutes);
-app.use('/api/v1/designations', (req, res, next) => {
-  // Aliased to team designation endpoints for backward compatibility
-  req.url = req.url.startsWith('/designations') ? req.url : `/designations${req.url}`;
-  teamRoutes(req, res, next);
-});
+app.use('/api/v1/designations', designationRoutes);
 app.use('/api/v1/gallery', galleryRoutes);
 app.use('/api/v1/activities', activityRoutes);
 app.use('/api/v1/applications', membershipRoutes);

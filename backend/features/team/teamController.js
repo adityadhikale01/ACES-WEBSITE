@@ -1,22 +1,70 @@
 import TeamMember from './teamModel.js';
 import Designation from './designationModel.js';
 import { AppError } from '../../utils/AppError.js';
+import { saveUploadedFile } from '../../utils/fileStorage.js';
 import path from 'path';
 import fs from 'fs';
 
 export const getAllMembers = async (req, res) => {
-  const { isCurrent = 'true' } = req.query;
-  const filter = {};
-  if (isCurrent !== 'all') {
-    filter.isCurrent = isCurrent === 'true';
+  const { isCurrent } = req.query;
+  const filter = { isActive: { $ne: false }, isPublished: { $ne: false } };
+  if (isCurrent === 'false') {
+    filter.isCurrent = false;
+  } else if (isCurrent === 'true') {
+    filter.isCurrent = { $ne: false };
   }
 
-  const members = await TeamMember.find(filter).sort({ displayOrder: 1, createdAt: 1 });
+  const members = await TeamMember.find(filter)
+    .populate('designationId')
+    .sort({ displayOrder: 1, createdAt: 1 });
+
+  // Map and normalize fields
+  const normalized = members.map((m) => {
+    const obj = m.toObject();
+    if (!obj.tier) {
+      const des = (obj.designation || obj.role || '').toUpperCase();
+      if (des.includes('PRESIDENT') && !des.includes('VICE')) {
+        obj.tier = 'PRESIDENT';
+      } else if (des.includes('VICE PRESIDENT') || des.includes('VICE-PRESIDENT') || des.includes('VICEPRESIDENT')) {
+        obj.tier = 'VICE_PRESIDENT';
+      } else if (des.includes('FACULTY') || obj.category === 'FACULTY') {
+        obj.tier = 'FACULTY';
+      } else if (des.includes('COMMITTEE') || obj.category === 'COMMITTEE') {
+        obj.tier = 'COMMITTEE';
+      } else {
+        obj.tier = 'EXECUTIVE';
+      }
+    }
+    obj.role = obj.role || obj.designation || (obj.tier === 'COMMITTEE' ? 'Committee Member' : obj.tier);
+    obj.designation = obj.designation || obj.role;
+    obj.department = obj.department || 'Computer Engineering';
+    obj.linkedinUrl = obj.linkedinUrl || obj.linkedin;
+    obj.githubUrl = obj.githubUrl || obj.github;
+    return obj;
+  });
+
+  const presidents = normalized.filter((m) => m.tier === 'PRESIDENT');
+  const vicePresidents = normalized.filter((m) => m.tier === 'VICE_PRESIDENT');
+  const executives = normalized.filter((m) => m.tier === 'EXECUTIVE');
+  const committee = normalized.filter((m) => m.tier === 'COMMITTEE');
+  const faculty = normalized.filter((m) => m.tier === 'FACULTY');
+
+  const grouped = {
+    president: presidents[0] || null,
+    presidents: presidents,
+    vicePresident: vicePresidents[0] || null,
+    vicePresidents: vicePresidents,
+    executives: executives,
+    committee: committee,
+    faculty: faculty,
+    all: normalized,
+  };
 
   res.status(200).json({
     success: true,
-    count: members.length,
-    members,
+    count: normalized.length,
+    team: grouped,
+    members: normalized,
   });
 };
 
@@ -61,8 +109,13 @@ export const deleteMember = async (req, res, next) => {
 };
 
 export const reorderMembers = async (req, res) => {
-  const { orders } = req.body; // Array of { id, displayOrder }
-  if (Array.isArray(orders)) {
+  const { orders, orderedIds } = req.body;
+  if (Array.isArray(orderedIds)) {
+    const promises = orderedIds.map((id, index) =>
+      TeamMember.findByIdAndUpdate(id, { displayOrder: index + 1 })
+    );
+    await Promise.all(promises);
+  } else if (Array.isArray(orders)) {
     const promises = orders.map(({ id, displayOrder }) =>
       TeamMember.findByIdAndUpdate(id, { displayOrder })
     );
@@ -76,32 +129,22 @@ export const reorderMembers = async (req, res) => {
 };
 
 export const uploadTeamPhoto = async (req, res, next) => {
-  if (!req.file) {
-    return next(new AppError('No photo uploaded', 400));
+  const file = req.file || (req.files && req.files[0]);
+  if (!file) {
+    return next(new AppError('No photo uploaded. Please select a photo file to upload.', 400));
   }
 
-  let photoUrl = '';
-  if (req.file.path && req.file.path.startsWith('http')) {
-    photoUrl = req.file.path;
-  } else if (req.file.buffer) {
-    // If memory storage, write to public uploads directory
-    const uploadDir = path.resolve(process.cwd(), 'uploads/public/team');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    const filename = `team-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname || '.jpg')}`;
-    fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
-    photoUrl = `/uploads/public/team/${filename}`;
-  } else if (req.file.filename) {
-    photoUrl = `/uploads/public/media/${req.file.filename}`;
+  try {
+    const photoUrl = await saveUploadedFile(file, 'team');
+    res.status(200).json({
+      success: true,
+      message: 'Team member photo uploaded successfully',
+      photoUrl,
+      url: photoUrl,
+    });
+  } catch (err) {
+    next(err);
   }
-
-  res.status(200).json({
-    success: true,
-    message: 'Team member photo uploaded successfully',
-    photoUrl,
-    url: photoUrl,
-  });
 };
 
 // Designations

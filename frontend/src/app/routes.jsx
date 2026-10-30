@@ -5,11 +5,13 @@ import EventDetailPage from '../pages/EventDetailPage/EventDetailPage.jsx';
 import TeamPage from '../pages/TeamPage/TeamPage.jsx';
 import AboutPage from '../pages/AboutPage/AboutPage.jsx';
 import ActivitiesPage from '../pages/ActivitiesPage/ActivitiesPage.jsx';
+import AchievementsPage from '../pages/AchievementsPage/AchievementsPage.jsx';
 import GalleryPage from '../pages/GalleryPage/GalleryPage.jsx';
-import ApplyPage from '../pages/ApplyPage/ApplyPage.jsx';
+import JoinPage from '../pages/JoinPage/JoinPage.jsx';
 import ContactPage from '../pages/ContactPage/ContactPage.jsx';
 import LoginPage from '../pages/LoginPage/LoginPage.jsx';
 import RegisterPage from '../pages/RegisterPage/RegisterPage.jsx';
+import MemberDashboard from '../pages/MemberDashboard/MemberDashboard.jsx';
 import AdminDashboard from '../pages/AdminDashboard/AdminDashboard.jsx';
 import ProtectedRoute from '../auth/ProtectedRoute.jsx';
 
@@ -57,13 +59,22 @@ export const routes = [
     loader: activitiesLoader,
   },
   {
+    path: 'achievements',
+    element: <AchievementsPage />,
+  },
+  {
     path: 'gallery',
     element: <GalleryPage />,
     loader: galleryLoader,
   },
   {
+    path: 'join',
+    element: <JoinPage />,
+    action: applyAction,
+  },
+  {
     path: 'apply',
-    element: <ApplyPage />,
+    element: <JoinPage />,
     action: applyAction,
   },
   {
@@ -80,6 +91,14 @@ export const routes = [
     path: 'register',
     element: <RegisterPage />,
     action: registerAction,
+  },
+  {
+    path: 'dashboard',
+    element: (
+      <ProtectedRoute>
+        <MemberDashboard />
+      </ProtectedRoute>
+    ),
   },
   {
     path: 'admin',

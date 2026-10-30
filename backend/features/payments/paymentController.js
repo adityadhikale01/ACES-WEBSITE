@@ -4,15 +4,24 @@ import Event from '../events/eventModel.js';
 import { AppError } from '../../utils/AppError.js';
 
 export const submitPaymentProof = async (req, res, next) => {
-  const { registrationId, utrNumber, payerUpiId } = req.validatedBody || req.body;
+  const { registrationId, utrNumber, utrReference, payerUpiId } = req.body;
+  const utr = utrNumber || utrReference;
   const file = req.file;
+
+  if (!registrationId) {
+    return next(new AppError('registrationId is required', 400));
+  }
+
+  if (!utr) {
+    return next(new AppError('Transaction Reference / UTR number is required', 400));
+  }
 
   const registration = await Registration.findById(registrationId).populate('eventId');
   if (!registration) {
     return next(new AppError('Registration not found', 404));
   }
 
-  if (registration.userId.toString() !== req.userId && !['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'].includes(req.user.role)) {
+  if (registration.userId && req.userId && registration.userId.toString() !== req.userId && !['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'].includes(req.user?.role)) {
     return next(new AppError('Unauthorized access to registration', 403));
   }
 
@@ -22,44 +31,59 @@ export const submitPaymentProof = async (req, res, next) => {
   }
 
   let receiptData = null;
-  let receiptMimeType = 'image/png';
+  let receiptMimeType = file?.mimetype || 'image/png';
   let receiptUrl = null;
 
   if (file) {
     if (file.buffer) {
       receiptData = file.buffer;
-      receiptMimeType = file.mimetype;
     } else if (file.path) {
       receiptUrl = file.path;
     }
   }
 
+  const amount = event.fee || event.feeAmountInPaise || 0;
+
   const paymentProof = await PaymentProof.create({
     registrationId,
     eventId: event._id,
     userId: req.userId,
-    amountInPaise: event.feeAmountInPaise,
-    utrNumber,
+    amountInPaise: amount,
+    expectedAmount: amount,
+    utrNumber: utr,
+    utrReference: utr,
     payerUpiId,
     receiptData,
     receiptMimeType,
     receiptUrl,
-    verificationStatus: 'PENDING',
+    verificationStatus: 'PROOF_SUBMITTED',
+    status: 'PROOF_SUBMITTED',
   });
 
   await Registration.findByIdAndUpdate(registrationId, {
-    paymentStatus: 'PAYMENT_SUBMITTED',
+    paymentStatus: 'PROOF_SUBMITTED',
+    paymentSubmissionId: paymentProof._id,
   });
 
   res.status(201).json({
     success: true,
     message: 'Payment proof submitted successfully! Verification pending by ACES coordinators.',
-    paymentProof: {
-      id: paymentProof._id,
-      utrNumber: paymentProof.utrNumber,
-      verificationStatus: paymentProof.verificationStatus,
-      amountInPaise: paymentProof.amountInPaise,
-    },
+    paymentProof,
+    submission: paymentProof,
+  });
+};
+
+export const getMyPayments = async (req, res) => {
+  const payments = await PaymentProof.find({ userId: req.userId })
+    .populate('eventId')
+    .populate('registrationId')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    count: payments.length,
+    payments,
+    submissions: payments,
   });
 };
 
@@ -70,9 +94,8 @@ export const getPaymentScreenshot = async (req, res, next) => {
     return next(new AppError('Payment proof not found', 404));
   }
 
-  // IDOR Protection: only owner, Superadmin, or President can view payment screenshot
-  const isOwner = payment.userId.toString() === req.userId;
-  const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'].includes(req.user.role);
+  const isOwner = payment.userId ? payment.userId.toString() === req.userId : false;
+  const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'PRESIDENT'].includes(req.user?.role);
   if (!isOwner && !isAdmin) {
     return next(new AppError('Access forbidden: You cannot view this payment receipt', 403));
   }
@@ -90,59 +113,82 @@ export const getPaymentScreenshot = async (req, res, next) => {
 };
 
 export const getAllPaymentsAdmin = async (req, res) => {
-  const { status = 'PENDING' } = req.query;
+  const { status, search } = req.query;
   const filter = {};
   if (status && status !== 'ALL') {
-    filter.verificationStatus = status;
+    filter.$or = [{ verificationStatus: status }, { status }];
   }
 
-  const payments = await PaymentProof.find(filter)
-    .populate('userId', 'name email prn department phone')
-    .populate('eventId', 'title slug feeAmountInPaise')
+  let payments = await PaymentProof.find(filter)
+    .populate('userId', 'fullName name email prn department phone')
+    .populate('eventId', 'title slug fee feeAmountInPaise')
+    .populate('registrationId')
     .sort({ createdAt: -1 });
+
+  if (search) {
+    const s = search.toLowerCase();
+    payments = payments.filter(
+      (p) =>
+        p.utrNumber?.toLowerCase().includes(s) ||
+        p.utrReference?.toLowerCase().includes(s) ||
+        p.userId?.fullName?.toLowerCase().includes(s) ||
+        p.userId?.name?.toLowerCase().includes(s) ||
+        p.userId?.email?.toLowerCase().includes(s) ||
+        p.eventId?.title?.toLowerCase().includes(s)
+    );
+  }
 
   res.status(200).json({
     success: true,
     count: payments.length,
     payments,
+    submissions: payments,
   });
 };
 
 export const reviewPaymentProof = async (req, res, next) => {
   const { id } = req.params;
-  const { status, rejectionReason } = req.validatedBody || req.body;
+  const { status, rejectionReason, adminNotes } = req.body;
 
   const payment = await PaymentProof.findById(id);
   if (!payment) {
     return next(new AppError('Payment record not found', 404));
   }
 
-  payment.verificationStatus = status;
+  const isApproved = status === 'VERIFIED' || status === 'APPROVED';
+  const newStatus = isApproved ? 'VERIFIED' : status;
+
+  payment.verificationStatus = newStatus;
+  payment.status = newStatus;
   payment.verifiedBy = req.userId;
+  payment.adminDecisionBy = req.user.fullName || req.user.name;
   payment.verifiedAt = new Date();
-  if (status === 'REJECTED') {
+  payment.adminNotes = adminNotes || '';
+
+  if (!isApproved) {
     payment.rejectionReason = rejectionReason || 'Payment proof was unclear or mismatched.';
   }
+
   await payment.save();
 
-  // If verified, promote registration to REGISTERED and increment event registrationCount
-  if (status === 'VERIFIED') {
+  if (isApproved) {
     await Registration.findByIdAndUpdate(payment.registrationId, {
       status: 'REGISTERED',
-      paymentStatus: 'PAYMENT_VERIFIED',
+      paymentStatus: 'VERIFIED',
     });
     await Event.findByIdAndUpdate(payment.eventId, {
-      $inc: { registrationCount: 1 },
+      $inc: { registrationCount: 1, registeredCount: 1 },
     });
-  } else if (status === 'REJECTED') {
+  } else {
     await Registration.findByIdAndUpdate(payment.registrationId, {
-      paymentStatus: 'PAYMENT_FAILED',
+      paymentStatus: 'REJECTED',
     });
   }
 
   res.status(200).json({
     success: true,
-    message: `Payment proof marked as ${status}`,
+    message: `Payment proof marked as ${newStatus}`,
     payment,
+    submission: payment,
   });
 };

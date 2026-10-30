@@ -1,6 +1,19 @@
 export const errorHandler = (err, req, res, next) => {
-  const statusCode = err.statusCode || (res.statusCode !== 200 ? res.statusCode : 500);
-  const message = err.message || 'Internal Server Error';
+  let statusCode = err.statusCode;
+  let message = err.message || 'Internal Server Error';
+
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      message = 'Uploaded file is too large. Maximum size allowed is 50MB.';
+    } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      message = `Unexpected upload field: "${err.field}". Please ensure you select an image file.`;
+    } else {
+      message = `File upload failed: ${err.message}`;
+    }
+  } else if (!statusCode) {
+    statusCode = res.statusCode !== 200 ? res.statusCode : 500;
+  }
 
   if (process.env.NODE_ENV !== 'test' && statusCode >= 500) {
     console.error('[Error Details]:', err);

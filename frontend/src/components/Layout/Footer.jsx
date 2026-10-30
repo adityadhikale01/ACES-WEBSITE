@@ -1,43 +1,65 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, MapPin, ExternalLink, Heart } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="bg-navy-950 border-t border-slate-800/80 pt-16 pb-12 text-slate-400">
+    <footer className="border-t border-slate-800/80 bg-navy-950/80 backdrop-blur-md pt-16 pb-12 text-slate-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
-          {/* Brand Col */}
-          <div className="space-y-4 md:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800/60">
+          {/* Brand Info */}
+          <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <img
-                src="/assets/aces-logo.jpeg"
-                alt="ACES Logo"
-                className="w-10 h-10 rounded-xl object-cover"
-              />
+              <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/5 border border-white/10 p-0.5">
+                <img
+                  src="/assets/aces-logo.jpeg"
+                  alt="ACES KBTCOE Logo"
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <div>
-                <span className="font-extrabold text-base text-white tracking-tight">
-                  ACES <span className="text-electric-blue">KBTCOE</span>
+                <span className="font-heading font-extrabold text-lg text-white tracking-tight">
+                  ACES KBTCOE
                 </span>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider">
-                  Students' Association
+                <p className="text-[10px] uppercase tracking-wider text-electric-cyan font-semibold">
+                  Computer Engineering Students' Association
                 </p>
               </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Association of Computer Engineering Students at Maratha Vidya Prasarak Samaj's Karmaveer Adv. Baburao Ganpatrao Thakare College of Engineering, Nashik.
+
+            <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+              The official departmental student club of Computer Engineering at MVPS's KBT College of Engineering,
+              Nashik. Empowering students through technical workshops, competitive hackathons, and leadership.
             </p>
+
+            <div className="flex items-center gap-2 pt-2">
+              <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60">
+                Term 2026 - 27
+              </span>
+              <span className="text-xs text-slate-500">•</span>
+              <span className="text-xs text-slate-400">Learn. Build. Connect. Lead.</span>
+            </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+          {/* Quick Navigation */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-4">
               Navigation
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
+                <Link to="/" className="hover:text-electric-cyan transition-colors">
+                  Home
+                </Link>
+              </li>
+              <li>
+                <Link to="/about" className="hover:text-electric-cyan transition-colors">
+                  About ACES
+                </Link>
+              </li>
+              <li>
                 <Link to="/events" className="hover:text-electric-cyan transition-colors">
-                  Workshops & Events
+                  Departmental Events
                 </Link>
               </li>
               <li>
@@ -46,79 +68,74 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link to="/join" className="hover:text-electric-cyan transition-colors">
+                  Membership Application
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Initiatives */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-4">
+              Initiatives
+            </h4>
+            <ul className="space-y-2 text-xs">
+              <li>
                 <Link to="/activities" className="hover:text-electric-cyan transition-colors">
-                  Department Activities
+                  Workshops & Sessions
+                </Link>
+              </li>
+              <li>
+                <Link to="/achievements" className="hover:text-electric-cyan transition-colors">
+                  Student Achievements
                 </Link>
               </li>
               <li>
                 <Link to="/gallery" className="hover:text-electric-cyan transition-colors">
-                  Event Photo Gallery
+                  Media & Event Gallery
                 </Link>
               </li>
               <li>
-                <Link to="/apply" className="hover:text-electric-cyan transition-colors">
-                  Join ACES Committee
+                <Link to="/dashboard" className="hover:text-electric-cyan transition-colors">
+                  Member Portal
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Department Info */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Department & College
+          {/* Contact & Institution */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-white mb-4">
+              Campus Contact
             </h4>
-            <div className="text-xs space-y-2 leading-relaxed">
+            <div className="space-y-2.5 text-xs text-slate-400">
               <div className="flex items-start gap-2">
-                <MapPin size={15} className="text-electric-cyan flex-shrink-0 mt-0.5" />
-                <span>
-                  Department of Computer Engineering, MVPS's KBTCOE, Udoji Maratha Boarding Campus, Gangapur Road, Nashik - 422013, Maharashtra.
-                </span>
+                <MapPin size={14} className="text-electric-cyan flex-shrink-0 mt-0.5" />
+                <span>Dept. of Computer Engineering, MVPS's KBTCOE, Gangapur Road, Nashik - 422013</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail size={14} className="text-electric-cyan flex-shrink-0" />
-                <span>aces.kbtcoe@gmail.com</span>
+                <a href="mailto:aces.kbtcoe@gmail.com" className="hover:text-white transition-colors">
+                  aces.kbtcoe@gmail.com
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone size={14} className="text-electric-cyan flex-shrink-0" />
+                <span>+91 253 2571439</span>
               </div>
             </div>
           </div>
-
-          {/* Connect */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Official Links
-            </h4>
-            <ul className="space-y-2 text-xs">
-              <li>
-                <a
-                  href="https://kbtcoe.org"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
-                >
-                  <span>College Website (KBTCOE)</span>
-                  <ExternalLink size={12} />
-                </a>
-              </li>
-              <li>
-                <Link to="/about" className="hover:text-white transition-colors">
-                  About the Committee
-                </Link>
-              </li>
-              <li>
-                <Link to="/contact" className="hover:text-white transition-colors">
-                  Inquiries & Feedback
-                </Link>
-              </li>
-            </ul>
-          </div>
         </div>
 
-        <div className="pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <p>© {new Date().getFullYear()} ACES KBTCOE. All rights reserved.</p>
-          <p className="flex items-center gap-1 text-slate-500">
-            <span>Built for the students of Computer Engineering</span>
-            <Heart size={12} className="text-rose-500 fill-rose-500" />
-          </p>
+        {/* Bottom Bar */}
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div>
+            © 2026-2027 <span className="text-slate-300 font-semibold">ACES KBTCOE</span>. All rights reserved.
+          </div>
+          <div className="flex items-center gap-6">
+            <span className="text-slate-500">Where Ideas Meet Innovation.</span>
+          </div>
         </div>
       </div>
     </footer>

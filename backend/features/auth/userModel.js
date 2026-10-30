@@ -66,13 +66,16 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 userSchema.methods.toSafeObject = function () {
   return {
     id: this._id.toString(),
+    _id: this._id.toString(),
     name: this.name,
+    fullName: this.name,
     email: this.email,
     role: this.role,
     department: this.department,
     academicYear: this.academicYear,
     prn: this.prn,
     phone: this.phone,
+    isApprovedMember: this.isApprovedMember ?? (this.role !== 'VISITOR'),
     createdAt: this.createdAt,
   };
 };

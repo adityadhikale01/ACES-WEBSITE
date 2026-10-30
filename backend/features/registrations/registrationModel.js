@@ -2,16 +2,22 @@ import mongoose from 'mongoose';
 
 const registrationSchema = new mongoose.Schema(
   {
+    ticketId: {
+      type: String,
+      unique: true,
+      index: true,
+    },
     eventId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Event',
       required: true,
       index: true,
     },
+    // Optional to support guest / without-login registrations
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       index: true,
     },
     name: {
@@ -19,11 +25,16 @@ const registrationSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    fullName: {
+      type: String,
+      trim: true,
+    },
     email: {
       type: String,
       required: true,
       lowercase: true,
       trim: true,
+      index: true,
     },
     department: {
       type: String,
@@ -31,12 +42,60 @@ const registrationSchema = new mongoose.Schema(
     },
     academicYear: {
       type: String,
+      default: 'SE',
     },
     prn: {
       type: String,
+      default: '',
+    },
+    prnOrRoll: {
+      type: String,
+      default: '',
     },
     phone: {
       type: String,
+      default: '',
+    },
+    college: {
+      type: String,
+      default: "MVPS's K.B.T. College of Engineering, Nashik",
+    },
+    // Group Event Registration Fields
+    isGroupRegistration: {
+      type: Boolean,
+      default: false,
+    },
+    groupName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    groupMembers: [
+      {
+        name: { type: String, trim: true },
+        email: { type: String, trim: true },
+        phone: { type: String, trim: true },
+        prn: { type: String, trim: true },
+        role: { type: String, default: 'Member' },
+      },
+    ],
+    // Payment Verification Fields
+    isPaidEvent: {
+      type: Boolean,
+      default: false,
+    },
+    amountDue: {
+      type: Number,
+      default: 0,
+    },
+    paymentScreenshotUrl: {
+      type: String,
+      default: '',
+    },
+    utrReference: {
+      type: String,
+      trim: true,
+      default: '',
     },
     status: {
       type: String,
@@ -46,9 +105,23 @@ const registrationSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['NOT_APPLICABLE', 'AWAITING_PAYMENT', 'PAYMENT_SUBMITTED', 'PAYMENT_VERIFIED', 'PAYMENT_FAILED'],
-      default: 'NOT_APPLICABLE',
+      enum: [
+        'FREE',
+        'NOT_APPLICABLE',
+        'AWAITING_PAYMENT',
+        'PROOF_SUBMITTED',
+        'PAYMENT_SUBMITTED',
+        'VERIFIED',
+        'PAYMENT_VERIFIED',
+        'REJECTED',
+        'PAYMENT_FAILED',
+      ],
+      default: 'FREE',
       index: true,
+    },
+    whatsappJoined: {
+      type: Boolean,
+      default: false,
     },
     attended: {
       type: Boolean,
@@ -57,13 +130,39 @@ const registrationSchema = new mongoose.Schema(
     attendanceMarkedAt: {
       type: Date,
     },
+    notes: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,
   }
 );
 
-registrationSchema.index({ eventId: 1, userId: 1 }, { unique: true });
+// Auto-generate unique Ticket/Registration ID before saving
+registrationSchema.pre('save', function (next) {
+  if (!this.ticketId) {
+    const randomHex = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const timeSlice = Date.now().toString().slice(-4);
+    this.ticketId = `ACES-EVT-${randomHex}${timeSlice}`;
+  }
+  if (!this.fullName && this.name) {
+    this.fullName = this.name;
+  }
+  if (!this.name && this.fullName) {
+    this.name = this.fullName;
+  }
+  if (!this.prn && this.prnOrRoll) {
+    this.prn = this.prnOrRoll;
+  }
+  if (!this.prnOrRoll && this.prn) {
+    this.prnOrRoll = this.prn;
+  }
+  next();
+});
+
+registrationSchema.index({ eventId: 1, email: 1, status: 1 });
 
 export const Registration = mongoose.model('Registration', registrationSchema);
 export default Registration;

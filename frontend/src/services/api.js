@@ -1,227 +1,199 @@
-import { fetchWithAuth } from '../auth/fetchWithAuth.js';
-
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
 
-async function request(endpoint, options = {}) {
+export async function request(endpoint, options = {}) {
   const url = `${API_BASE}${endpoint}`;
-  const response = await fetchWithAuth(url, options);
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
-  const contentType = response.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'Request failed');
-    }
-    return data;
+  const defaultHeaders = isFormData
+    ? {}
+    : {
+        'Content-Type': 'application/json',
+      };
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...defaultHeaders,
+      ...(options.headers || {}),
+    },
+    credentials: 'include',
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
   }
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || 'Request failed');
+    const errorMsg = data.message || `Request failed with status ${response.status}`;
+    throw new Error(errorMsg);
   }
 
-  return response;
+  return data;
 }
 
 export const api = {
+  // Auth
   auth: {
-    login: (credentials) =>
-      request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      }),
-    register: (userData) =>
-      request('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(userData),
-      }),
-    getMe: () => request('/auth/me'),
+    register: (body) => request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+    login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
     logout: () => request('/auth/logout', { method: 'POST' }),
+    me: () => request('/auth/me'),
+    updateProfile: (body) => request('/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
   },
+
+  // Events
   events: {
-    getAll: (params = '') => request(`/events${params ? `?${params}` : ''}`),
+    getAll: (params) => {
+      if (typeof params === 'string') {
+        return request(`/events${params ? (params.startsWith('?') ? params : `?${params}`) : ''}`);
+      }
+      const q = new URLSearchParams();
+      if (params?.category) q.append('category', params.category);
+      if (params?.status) q.append('status', params.status);
+      if (params?.search) q.append('search', params.search);
+      if (params?.featured) q.append('featured', 'true');
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return request(`/events${queryStr}`);
+    },
     getBySlug: (slug) => request(`/events/${slug}`),
-    create: (data) =>
-      request('/events', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (id, data) =>
-      request(`/events/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-    delete: (id) =>
-      request(`/events/${id}`, {
-        method: 'DELETE',
-      }),
+    create: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) => request(`/events/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id) => request(`/events/${id}`, { method: 'DELETE' }),
   },
+
+  // Registrations
   registrations: {
-    register: (data) =>
-      request('/registrations', {
+    register: (body) => {
+      const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+      return request('/registrations', {
         method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    getMy: () => request('/registrations/my'),
+        body: isForm ? body : JSON.stringify(body),
+      });
+    },
+    cancel: (id) => request(`/registrations/${id}`, { method: 'DELETE' }),
+    getMyRegistrations: () => request('/registrations/my'),
     getAttendees: (eventId) => request(`/registrations/event/${eventId}`),
-    updateAttendance: (id, attended) =>
-      request(`/registrations/${id}/attendance`, {
-        method: 'PATCH',
-        body: JSON.stringify({ attended }),
-      }),
-    exportCSV: (eventId) => `${API_BASE}/registrations/event/${eventId}/export`,
+    updateAttendance: (id, status) =>
+      request(`/registrations/${id}/attendance`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    getExportUrl: (eventId) => `${API_BASE}/registrations/event/${eventId}/export`,
   },
+
+  // Payments & Manual Verification
   payments: {
     submitProof: (formData) =>
       request('/payments/submit-proof', {
         method: 'POST',
         body: formData,
       }),
-    getAllAdmin: (status = 'PENDING') => request(`/payments/admin/all?status=${status}`),
-    verify: (id, data) =>
-      request(`/payments/admin/${id}/verify`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+    getMyPayments: () => request('/payments/my'),
+    getAdminQueue: (params) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.append('status', params.status);
+      if (params?.search) q.append('search', params.search);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return request(`/payments/admin/all${queryStr}`);
+    },
+    verifyProof: (id, body) =>
+      request(`/payments/admin/${id}/verify`, { method: 'PATCH', body: JSON.stringify(body) }),
     getScreenshotUrl: (id) => `${API_BASE}/payments/screenshot/${id}`,
   },
+
+  // Designations
+  designations: {
+    getAll: () => request('/designations'),
+    getAllAdmin: () => request('/designations/admin/all'),
+    create: (body) => request('/designations', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) => request(`/designations/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    retire: (id) => request(`/designations/${id}`, { method: 'DELETE' }),
+  },
+
+  // Applications
+  applications: {
+    submit: (body) => request('/applications', { method: 'POST', body: JSON.stringify(body) }),
+    getMyApplication: () => request('/applications/my'),
+    getAll: (params) => {
+      const q = new URLSearchParams();
+      if (params?.status) q.append('status', params?.status);
+      if (params?.search) q.append('search', params?.search);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return request(`/applications/all${queryStr}`);
+    },
+    review: (id, body) =>
+      request(`/applications/${id}/review`, { method: 'PATCH', body: JSON.stringify(body) }),
+  },
+
+  // Team
   team: {
     getAll: () => request('/team'),
-    create: (data) =>
-      request('/team', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (id, data) =>
-      request(`/team/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-    delete: (id) =>
-      request(`/team/${id}`, {
-        method: 'DELETE',
-      }),
-    reorder: (orders) =>
-      request('/team/reorder', {
-        method: 'POST',
-        body: JSON.stringify({ orders }),
-      }),
+    getAllAdmin: () => request('/team/admin/all'),
+    add: (body) => request('/team', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) => request(`/team/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id) => request(`/team/${id}`, { method: 'DELETE' }),
+    reorder: (orderedIds) =>
+      request('/team/reorder', { method: 'PATCH', body: JSON.stringify({ orderedIds }) }),
     uploadPhoto: (formData) =>
-      request('/team/upload-photo', {
+      request('/team/upload-photo', { method: 'POST', body: formData }),
+  },
+
+  // Activities
+  activities: {
+    getAll: (type) => request(`/activities${type ? `?type=${type}` : ''}`),
+    create: (body) => request('/activities', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id, body) => request(`/activities/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id) => request(`/activities/${id}`, { method: 'DELETE' }),
+  },
+
+  // Gallery (Albums & Media)
+  gallery: {
+    getAlbums: (category) =>
+      request(`/gallery/albums${category ? `?category=${category}` : ''}`),
+    getAlbumById: (id) => request(`/gallery/albums/${id}`),
+    getAllAlbumsAdmin: () => request('/gallery/admin/all'),
+    createAlbum: (body) => request('/gallery/albums', { method: 'POST', body: JSON.stringify(body) }),
+    updateAlbum: (id, body) =>
+      request(`/gallery/albums/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    deleteAlbum: (id) => request(`/gallery/albums/${id}`, { method: 'DELETE' }),
+    uploadMedia: (albumId, formData) =>
+      request(`/gallery/albums/${albumId}/media`, {
         method: 'POST',
         body: formData,
       }),
-    getDesignations: () => request('/team/designations'),
-    createDesignation: (data) =>
-      request('/team/designations', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    updateDesignation: (id, data) =>
-      request(`/team/designations/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-    deleteDesignation: (id) =>
-      request(`/team/designations/${id}`, {
-        method: 'DELETE',
-      }),
+    deleteMedia: (albumId, mediaId) =>
+      request(`/gallery/albums/${albumId}/media/${mediaId}`, { method: 'DELETE' }),
+    getAllLegacy: (category) =>
+      request(`/gallery/legacy${category ? `?category=${category}` : ''}`),
   },
-  gallery: {
-    getAlbums: () => request('/gallery/albums'),
-    getAlbumBySlug: (slug) => request(`/gallery/albums/${slug}`),
-    createAlbum: (data) =>
-      request('/gallery/albums', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    updateAlbum: (id, data) =>
-      request(`/gallery/albums/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-    deleteAlbum: (id) =>
-      request(`/gallery/albums/${id}`, {
-        method: 'DELETE',
-      }),
-    addMedia: (data) =>
-      request('/gallery/media', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    deleteMedia: (id) =>
-      request(`/gallery/media/${id}`, {
-        method: 'DELETE',
-      }),
-  },
-  activities: {
-    getAll: (params = '') => request(`/activities${params ? `?${params}` : ''}`),
-    create: (data) =>
-      request('/activities', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    update: (id, data) =>
-      request(`/activities/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }),
-    delete: (id) =>
-      request(`/activities/${id}`, {
-        method: 'DELETE',
-      }),
-  },
-  membership: {
-    apply: (data) =>
-      request('/applications', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    getAll: (status = 'PENDING') => request(`/applications?status=${status}`),
-    review: (id, data) =>
-      request(`/applications/${id}/review`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
-  },
+
+  // Contact
   contact: {
-    submit: (data) =>
-      request('/contact', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    submit: (body) => request('/contact', { method: 'POST', body: JSON.stringify(body) }),
     getAll: () => request('/contact'),
-    resolve: (id, isResolved) =>
-      request(`/contact/${id}/resolve`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isResolved }),
-      }),
+    markRead: (id, isRead) =>
+      request(`/contact/${id}`, { method: 'PATCH', body: JSON.stringify({ isRead }) }),
   },
+
+  // Content CMS
   content: {
     get: (key) => request(`/content/${key}`),
-    update: (key, data) =>
-      request(`/content/${key}`, {
-        method: 'PUT',
-        body: JSON.stringify({ data }),
-      }),
+    update: (key, data) => request(`/content/${key}`, { method: 'PUT', body: JSON.stringify({ data }) }),
     uploadImage: (formData) =>
-      request('/content/upload-image', {
-        method: 'POST',
-        body: formData,
-      }),
+      request('/content/upload-image', { method: 'POST', body: formData }),
   },
+
+  // Admin
   admin: {
     getStats: () => request('/admin/stats'),
-    getUsers: () => request('/admin/users'),
-    updateUserRole: (id, role) =>
-      request(`/admin/users/${id}/role`, {
-        method: 'PATCH',
-        body: JSON.stringify({ role }),
-      }),
-    deleteUser: (id) =>
-      request(`/admin/users/${id}`, {
-        method: 'DELETE',
-      }),
+    getUsers: (params) => {
+      const q = new URLSearchParams();
+      if (params?.role) q.append('role', params?.role);
+      if (params?.search) q.append('search', params?.search);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      return request(`/admin/users${queryStr}`);
+    },
+    updateUser: (id, body) => request(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   },
 };
 

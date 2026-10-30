@@ -12,7 +12,13 @@ const generateToken = (user) => {
 };
 
 export const register = async (req, res, next) => {
-  const { name, email, password, department, academicYear, prn, phone } = req.validatedBody || req.body;
+  const body = req.validatedBody || req.body;
+  const name = body.name || body.fullName;
+  const { email, password, department, academicYear, prn, phone } = body;
+
+  if (!name) {
+    return next(new AppError('Full name is required', 400));
+  }
 
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) {
