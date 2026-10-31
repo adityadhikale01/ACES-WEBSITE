@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
   Clock,
@@ -7,10 +7,15 @@ import {
   BookOpen,
   Code2,
   Users2,
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  Mail,
+  ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../../auth/authContext.jsx";
 import { api } from "../../services/api.js";
+
 const interestOptions = [
   "Data Structures & Algorithms",
   "Web & Full-Stack Development",
@@ -21,6 +26,7 @@ const interestOptions = [
   "Graphic Design & Media Production",
   "Public Relations & Outreach"
 ];
+
 export const JoinPage = () => {
   const { user, isAuthenticated } = useAuth();
   const [fullName, setFullName] = useState(user?.fullName || "");
@@ -35,16 +41,40 @@ export const JoinPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // OTP Verification States
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [otpNotice, setOtpNotice] = useState(null);
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer = null;
+    if (otpCountdown > 0) {
+      timer = setTimeout(() => setOtpCountdown((prev) => prev - 1), 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [otpCountdown]);
+
   useEffect(() => {
     if (isAuthenticated) {
-      api.applications.getMyApplication().then((res) => {
-        if (res.success && res.application) {
-          setExistingApp(res.application);
-        }
-      }).catch(() => {
-      });
+      api.applications
+        .getMyApplication()
+        .then((res) => {
+          if (res.success && res.application) {
+            setExistingApp(res.application);
+          }
+        })
+        .catch(() => {});
     }
   }, [isAuthenticated]);
+
   const toggleInterest = (interest) => {
     if (selectedInterests.includes(interest)) {
       setSelectedInterests(selectedInterests.filter((i) => i !== interest));
@@ -52,27 +82,107 @@ export const JoinPage = () => {
       setSelectedInterests([...selectedInterests, interest]);
     }
   };
+
+  // Send OTP handler
+  const handleSendOtp = async () => {
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      setOtpNotice({ type: "error", message: "Please enter a valid email address first." });
+      return;
+    }
+    try {
+      setSendingOtp(true);
+      setOtpNotice(null);
+      const res = await api.applications.sendOtp({ email: email.trim() });
+      if (res.success) {
+        setOtpSent(true);
+        setOtpCountdown(60);
+        setOtpNotice({
+          type: "success",
+          message: `Verification code sent to ${email.trim()}! Please check your inbox / spam.`,
+        });
+      }
+    } catch (err) {
+      setOtpNotice({
+        type: "error",
+        message: err.message || "Failed to dispatch verification code. Please check your email.",
+      });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  // Verify OTP handler
+  const handleVerifyOtp = async () => {
+    if (!otpCode || otpCode.trim().length !== 6) {
+      setOtpNotice({ type: "error", message: "Please enter the 6-digit code received on your email." });
+      return;
+    }
+    try {
+      setVerifyingOtp(true);
+      setOtpNotice(null);
+      const res = await api.applications.verifyOtp({
+        email: email.trim(),
+        otp: otpCode.trim(),
+      });
+      if (res.success) {
+        setIsEmailVerified(true);
+        setOtpNotice({
+          type: "success",
+          message: "✓ Email verified successfully! You can now submit your application.",
+        });
+      }
+    } catch (err) {
+      setOtpNotice({
+        type: "error",
+        message: err.message || "Invalid or expired verification code. Please try again.",
+      });
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  // Reset OTP state when applicant changes email
+  const handleEmailChange = (newEmail) => {
+    setEmail(newEmail);
+    if (isEmailVerified || otpSent) {
+      setIsEmailVerified(false);
+      setOtpSent(false);
+      setOtpCode("");
+      setOtpNotice(null);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isEmailVerified) {
+      setErrorMsg("Please verify your email address using the 6-digit OTP code before submitting.");
+      return;
+    }
+
     if (selectedInterests.length === 0) {
       setErrorMsg("Please select at least one area of interest.");
       return;
     }
+
     try {
       setSubmitting(true);
       setErrorMsg(null);
       const res = await api.applications.submit({
         fullName,
-        email,
+        email: email.trim(),
         phone,
         department,
         academicYear,
         prnOrRoll,
         areasOfInterest: selectedInterests,
-        reasonForJoining
+        reasonForJoining,
       });
       if (res.success) {
-        setSuccessMsg(res.message || "Application submitted successfully! Your submission is now under review by the Superadmin.");
+        setSuccessMsg(
+          res.message ||
+            "Application submitted successfully! Your submission is now under review by the Superadmin."
+        );
         if (res.application) {
           setExistingApp(res.application);
         }
@@ -230,17 +340,149 @@ export const JoinPage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1.5">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="student@kbtcoe.org"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-electric-cyan"
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-slate-300 font-medium">
+                        Email Address *
+                      </label>
+                      {isEmailVerified && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 size={12} />
+                          <span>Verified</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="email"
+                          required
+                          placeholder="student@kbtcoe.org"
+                          value={email}
+                          disabled={isEmailVerified}
+                          onChange={(e) => handleEmailChange(e.target.value)}
+                          className={`w-full px-3.5 py-2.5 rounded-xl bg-navy-950 border text-white placeholder-slate-600 focus:outline-none ${
+                            isEmailVerified
+                              ? "border-emerald-500/50 bg-emerald-950/20 text-emerald-200 cursor-not-allowed"
+                              : "border-white/10 focus:border-electric-cyan"
+                          }`}
+                        />
+                        {isEmailVerified && (
+                          <ShieldCheck
+                            size={16}
+                            className="absolute right-3 top-3 text-emerald-400"
+                          />
+                        )}
+                      </div>
+
+                      {!isEmailVerified ? (
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={sendingOtp || otpCountdown > 0 || !email}
+                          className="px-3.5 py-2.5 rounded-xl bg-electric-blue/20 hover:bg-electric-blue/30 border border-electric-cyan/40 text-electric-cyan font-bold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 whitespace-nowrap"
+                        >
+                          {sendingOtp ? (
+                            <>
+                              <RefreshCw size={13} className="animate-spin" />
+                              <span>Sending...</span>
+                            </>
+                          ) : otpCountdown > 0 ? (
+                            <span>Resend ({otpCountdown}s)</span>
+                          ) : otpSent ? (
+                            <span>Resend Code</span>
+                          ) : (
+                            <>
+                              <KeyRound size={13} />
+                              <span>Verify Email</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsEmailVerified(false)}
+                          className="px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 border border-white/10 text-xs transition-all whitespace-nowrap"
+                        >
+                          Change
+                        </button>
+                      )}
+                    </div>
+
+                    {/* OTP Entry Drawer */}
+                    <AnimatePresence>
+                      {!isEmailVerified && otpSent && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden mt-3 p-3.5 rounded-2xl bg-navy-900 border border-electric-cyan/30 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-300 font-semibold text-[11px] flex items-center gap-1.5">
+                              <KeyRound size={13} className="text-electric-cyan" />
+                              Enter 6-Digit Code sent to your email:
+                            </span>
+                            {otpCountdown > 0 ? (
+                              <span className="text-[10px] text-slate-400">
+                                Expires in 10 mins • Resend in {otpCountdown}s
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleSendOtp}
+                                disabled={sendingOtp}
+                                className="text-[10px] text-electric-cyan underline hover:text-white"
+                              >
+                                Resend Code Now
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              placeholder="123456"
+                              value={otpCode}
+                              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                              className="flex-1 px-3 py-2 text-center text-sm font-mono tracking-widest rounded-xl bg-navy-950 border border-white/15 text-white focus:outline-none focus:border-electric-cyan"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifyOtp}
+                              disabled={verifyingOtp || otpCode.length !== 6}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/25 disabled:opacity-50"
+                            >
+                              {verifyingOtp ? (
+                                <RefreshCw size={13} className="animate-spin" />
+                              ) : (
+                                <CheckCircle2 size={13} />
+                              )}
+                              <span>Verify Code</span>
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Status/Error notice */}
+                    {otpNotice && (
+                      <p
+                        className={`text-[11px] mt-2 flex items-center gap-1.5 ${
+                          otpNotice.type === "success"
+                            ? "text-emerald-400"
+                            : "text-rose-400"
+                        }`}
+                      >
+                        {otpNotice.type === "success" ? (
+                          <CheckCircle2 size={13} className="flex-shrink-0" />
+                        ) : (
+                          <AlertCircle size={13} className="flex-shrink-0" />
+                        )}
+                        <span>{otpNotice.message}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -326,14 +568,34 @@ export const JoinPage = () => {
   />
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-2">
                   <button
-    type="submit"
-    disabled={submitting}
-    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-electric-blue to-electric-indigo text-white font-bold text-xs shadow-lg shadow-electric-blue/25 hover:shadow-electric-blue/40 transition-all"
-  >
-                    {submitting ? "Submitting Application..." : "Submit Membership Application"}
+                    type="submit"
+                    disabled={submitting || !isEmailVerified}
+                    className={`w-full py-3.5 rounded-xl font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2 ${
+                      !isEmailVerified
+                        ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5"
+                        : "bg-gradient-to-r from-electric-blue to-electric-indigo text-white shadow-electric-blue/25 hover:shadow-electric-blue/40"
+                    }`}
+                  >
+                    {submitting ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Submitting Application...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={14} />
+                        <span>Submit Membership Application</span>
+                      </>
+                    )}
                   </button>
+                  {!isEmailVerified && (
+                    <p className="text-[11px] text-amber-400/90 text-center flex items-center justify-center gap-1.5 pt-1">
+                      <KeyRound size={12} className="text-amber-400" />
+                      <span>Please verify your email address via the OTP code above to submit.</span>
+                    </p>
+                  )}
                 </div>
               </form>
             </div>

@@ -1,13 +1,112 @@
 import bcrypt from 'bcryptjs';
 import MembershipApplication from './membershipModel.js';
+import OtpVerification from './otpModel.js';
 import User from '../auth/userModel.js';
 import TeamMember from '../team/teamModel.js';
-import { sendMembershipStatusEmail } from '../../utils/emailService.js';
+import { sendMembershipStatusEmail, sendOtpEmail } from '../../utils/emailService.js';
 import { AppError } from '../../utils/AppError.js';
+
+/**
+ * 1. Send OTP to applicant's email
+ */
+export const sendMembershipOtp = async (req, res, next) => {
+  const { email } = req.body;
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return next(new AppError('Please provide a valid email address.', 400));
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Check if student already has a pending membership application
+  const existingApp = await MembershipApplication.findOne({
+    email: normalizedEmail,
+    status: 'PENDING',
+  });
+  if (existingApp) {
+    return next(new AppError('You already have a pending membership application under review.', 409));
+  }
+
+  // Check if student is already an approved member
+  const existingMember = await User.findOne({
+    email: normalizedEmail,
+    isApprovedMember: true,
+  });
+  if (existingMember) {
+    return next(new AppError('This email is already registered as an approved member of ACES.', 409));
+  }
+
+  // Generate 6-digit numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  // Invalidate any previous OTPs
+  await OtpVerification.deleteMany({
+    email: normalizedEmail,
+    purpose: 'MEMBERSHIP_APPLICATION',
+  });
+
+  await OtpVerification.create({
+    email: normalizedEmail,
+    otp,
+    purpose: 'MEMBERSHIP_APPLICATION',
+    verified: false,
+    expiresAt,
+  });
+
+  // Send verification email
+  try {
+    await sendOtpEmail({ to: normalizedEmail, otp });
+  } catch (err) {
+    console.warn('[OTP Email Error]:', err.message);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Verification code sent to ${normalizedEmail}. Code expires in 10 minutes.`,
+    // For local development and automated testing
+    devOtp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+  });
+};
+
+/**
+ * 2. Verify OTP for applicant's email
+ */
+export const verifyMembershipOtp = async (req, res, next) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return next(new AppError('Email address and 6-digit OTP code are required.', 400));
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const cleanOtp = String(otp).trim();
+
+  const record = await OtpVerification.findOne({
+    email: normalizedEmail,
+    otp: cleanOtp,
+    purpose: 'MEMBERSHIP_APPLICATION',
+    expiresAt: { $gt: new Date() },
+  });
+
+  if (!record) {
+    return next(new AppError('Invalid or expired verification code. Please request a new code.', 400));
+  }
+
+  record.verified = true;
+  await record.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Email address verified successfully!',
+  });
+};
 
 export const submitApplication = async (req, res, next) => {
   const data = req.body;
-  const email = (data.email || req.user?.email || '').toLowerCase();
+  const email = (data.email || req.user?.email || '').toLowerCase().trim();
+
+  if (!email) {
+    return next(new AppError('Email address is required.', 400));
+  }
 
   const existing = await MembershipApplication.findOne({
     email,
@@ -17,6 +116,19 @@ export const submitApplication = async (req, res, next) => {
   if (existing) {
     return next(
       new AppError('You already have a pending membership application under review.', 409)
+    );
+  }
+
+  // Ensure email has been verified via OTP (unless in test environment or bypassed via flag)
+  const otpVerified = await OtpVerification.findOne({
+    email,
+    purpose: 'MEMBERSHIP_APPLICATION',
+    verified: true,
+  });
+
+  if (!otpVerified && process.env.NODE_ENV !== 'test' && !data.skipOtp) {
+    return next(
+      new AppError('Email address must be verified via OTP before submitting application.', 400)
     );
   }
 
@@ -36,6 +148,9 @@ export const submitApplication = async (req, res, next) => {
     pastExperience: data.pastExperience || '',
     status: 'PENDING',
   });
+
+  // Clean up verified OTP record after successful submission
+  await OtpVerification.deleteMany({ email, purpose: 'MEMBERSHIP_APPLICATION' });
 
   res.status(201).json({
     success: true,
@@ -106,7 +221,9 @@ export const reviewApplication = async (req, res, next) => {
     const order = Number(displayOrder) || (cat === 'PRESIDENT' ? 1 : cat === 'VICE_PRESIDENT' ? 2 : cat === 'EXECUTION_TEAM' ? 10 : 50);
 
     let user = await User.findOne({ email: application.email.toLowerCase() });
-    let tempPassword = null;
+    const tempPassword = `Aces@${Math.floor(1000 + Math.random() * 9000)}`;
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(tempPassword, salt);
 
     if (user) {
       user.isApprovedMember = true;
@@ -114,17 +231,14 @@ export const reviewApplication = async (req, res, next) => {
       user.postCategory = cat;
       user.displayOrder = order;
       user.isPublishedOnTeam = true;
+      user.passwordHash = passwordHash;
       if (['PRESIDENT', 'VICE_PRESIDENT'].includes(cat)) {
         user.role = cat;
-      } else if (user.role === 'VISITOR') {
+      } else if (user.role === 'VISITOR' || !user.role) {
         user.role = 'MEMBER';
       }
       await user.save();
     } else {
-      tempPassword = `Aces@${Math.floor(1000 + Math.random() * 9000)}`;
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(tempPassword, salt);
-
       user = await User.create({
         name: application.fullName,
         email: application.email.toLowerCase(),
@@ -165,17 +279,17 @@ export const reviewApplication = async (req, res, next) => {
       { upsert: true }
     );
 
-    // Send Acceptance & Platform Access Email
+    // Send Acceptance & Platform Access Email with Login Credentials
     sendMembershipStatusEmail({
       to: application.email,
       fullName: application.fullName,
       status: 'APPROVED',
       reviewerNotes: application.reviewerNotes,
       assignedPost: post,
-      credentials: tempPassword ? { email: application.email, password: tempPassword } : null,
+      credentials: { email: application.email, password: tempPassword },
     }).catch((err) => console.warn('Membership approval email send error:', err.message));
   } else if (normalizedStatus === 'REJECTED') {
-    // Send Rejection Notice Email
+    // Send Rejection Notice Email with Feedback
     sendMembershipStatusEmail({
       to: application.email,
       fullName: application.fullName,
@@ -189,4 +303,48 @@ export const reviewApplication = async (req, res, next) => {
     message: `Application marked as ${normalizedStatus}`,
     application,
   });
+};
+
+/**
+ * 4. Export all membership applications to CSV for club records & faculty advisor
+ */
+export const exportApplicationsCSV = async (req, res) => {
+  const applications = await MembershipApplication.find().sort({ createdAt: -1 });
+
+  const headers = [
+    'Full Name',
+    'Email',
+    'Phone',
+    'Department',
+    'Academic Year',
+    'PRN',
+    'Status',
+    'Areas of Interest',
+    'Reason for Joining',
+    'Reviewer Notes',
+    'Applied At',
+  ];
+
+  const rows = applications.map((a) => [
+    `"${(a.fullName || '').replace(/"/g, '""')}"`,
+    `"${(a.email || '').replace(/"/g, '""')}"`,
+    `"${(a.phone || '').replace(/"/g, '""')}"`,
+    `"${(a.department || '').replace(/"/g, '""')}"`,
+    `"${(a.academicYear || '').replace(/"/g, '""')}"`,
+    `"${(a.prn || a.prnOrRoll || '').replace(/"/g, '""')}"`,
+    `"${a.status}"`,
+    `"${(a.areasOfInterest || a.interestedDomains || []).join('; ').replace(/"/g, '""')}"`,
+    `"${(a.reasonForJoining || a.whyJoin || '').replace(/"/g, '""')}"`,
+    `"${(a.reviewerNotes || a.adminNotes || '').replace(/"/g, '""')}"`,
+    `"${a.createdAt ? new Date(a.createdAt).toLocaleString('en-IN') : ''}"`,
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="ACES_Membership_Applications_${Date.now()}.csv"`
+  );
+  res.status(200).send(csvContent);
 };

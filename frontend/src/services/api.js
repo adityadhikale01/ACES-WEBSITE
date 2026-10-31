@@ -116,6 +116,8 @@ export const api = {
 
   // Applications
   applications: {
+    sendOtp: (body) => request('/applications/send-otp', { method: 'POST', body: JSON.stringify(body) }),
+    verifyOtp: (body) => request('/applications/verify-otp', { method: 'POST', body: JSON.stringify(body) }),
     submit: (body) => request('/applications', { method: 'POST', body: JSON.stringify(body) }),
     getMyApplication: () => request('/applications/my'),
     getAll: (params) => {
@@ -127,6 +129,7 @@ export const api = {
     },
     review: (id, body) =>
       request(`/applications/${id}/review`, { method: 'PATCH', body: JSON.stringify(body) }),
+    exportCSVUrl: `${API_BASE}/applications/export`,
   },
 
   // Team

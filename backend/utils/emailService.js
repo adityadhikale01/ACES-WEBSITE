@@ -469,7 +469,49 @@ export const sendPaymentRejectedEmail = async ({
 };
 
 /**
- * 5. Diagnostic Test Email
+ * 5. Membership Application Email Verification OTP
+ */
+export const sendOtpEmail = async ({ to, otp, purpose = 'membership_application' }) => {
+  const cfg = await getEmailConfig();
+  const subject = `🔐 ACES KBTCOE - Email Verification Code: ${otp}`;
+  const html = `
+  <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.3);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="color: #38bdf8; margin: 0; font-size: 24px;">${cfg.headerTitle || 'ACES KBTCOE'}</h1>
+      <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">${cfg.headerSubtitle || 'Association of Computer Engineering Students • MVPS KBTCOE Nashik'}</p>
+    </div>
+
+    <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px;">
+      <h2 style="color: #38bdf8; margin: 0 0 8px 0; font-size: 18px;">Email Verification Code</h2>
+      <p style="color: #e2e8f0; margin: 0; font-size: 13px;">Use this 6-digit code to verify your email address for your ACES Membership application.</p>
+    </div>
+
+    <!-- OTP Code Display -->
+    <div style="background: #111827; border: 2px dashed #38bdf8; border-radius: 14px; padding: 24px; text-align: center; margin: 24px 0;">
+      <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 2px; display: block;">One-Time Password (OTP)</span>
+      <strong style="color: #38bdf8; font-size: 36px; font-family: monospace; letter-spacing: 8px; display: block; margin: 10px 0;">${otp}</strong>
+      <span style="color: #f59e0b; font-size: 12px; font-weight: 600;">⏱️ Valid for 10 minutes</span>
+    </div>
+
+    <p style="font-size: 13px; line-height: 1.6; color: #cbd5e1; text-align: center;">
+      Please enter this code on the application page to complete your email verification. Do not share this code with anyone.
+    </p>
+
+    <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin-top: 20px; font-size: 12px; color: #94a3b8; text-align: center;">
+      ℹ️ If you did not request this verification code, please ignore this email.
+    </div>
+
+    <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+      ${cfg.footerDisclaimer || "ACES KBTCOE • Department of Computer Engineering • MVPS's K.B.T. College of Engineering, Nashik"}
+    </p>
+  </div>
+  `;
+
+  return sendEmail({ to, subject, html });
+};
+
+/**
+ * 6. Diagnostic Test Email
  */
 export const sendTestEmail = async ({ to, customSubject, customMessage }) => {
   const cfg = await getEmailConfig();

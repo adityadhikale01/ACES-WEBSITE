@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
+process.env.NODE_ENV = 'test';
 
 import mongoose from 'mongoose';
 import app from './server.js';
@@ -201,13 +202,35 @@ async function runTests() {
     const assignPostData = await assignPostRes.json();
     assert(assignPostRes.status === 200 && assignPostData.user?.assignedPost === 'Vice President of Technical Affairs', 'Superadmin dynamically assigns Vice President post to platform member');
 
-    // 11. Membership Application & Automated Approval with Email Dispatch (Change 2)
+    // 11. OTP Email Verification & Membership Application Flow
+    const applicantEmail = `sneha-${Date.now()}@kbtcoe.org`;
+
+    // 11a. Send OTP to applicant email
+    const sendOtpRes = await fetch(`${baseUrl}/api/v1/applications/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: applicantEmail }),
+    });
+    const sendOtpData = await sendOtpRes.json();
+    assert(sendOtpRes.status === 200 && sendOtpData.success === true && !!sendOtpData.devOtp, 'Applicant receives 6-digit OTP code on email for ACES membership intake');
+    const otp = sendOtpData.devOtp;
+
+    // 11b. Verify OTP code
+    const verifyOtpRes = await fetch(`${baseUrl}/api/v1/applications/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: applicantEmail, otp }),
+    });
+    const verifyOtpData = await verifyOtpRes.json();
+    assert(verifyOtpRes.status === 200 && verifyOtpData.success === true, 'Applicant email successfully verified via 6-digit OTP');
+
+    // 11c. Submit Membership Application
     const appSubmitRes = await fetch(`${baseUrl}/api/v1/applications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fullName: 'Sneha Kulkarni',
-        email: `sneha-${Date.now()}@kbtcoe.org`,
+        email: applicantEmail,
         phone: '9876543210',
         department: 'Computer Engineering',
         academicYear: 'SE',
@@ -216,8 +239,9 @@ async function runTests() {
       }),
     });
     const appSubmitData = await appSubmitRes.json();
-    assert(appSubmitRes.status === 201 && !!appSubmitData.application?._id, 'Student submits membership application');
+    assert(appSubmitRes.status === 201 && !!appSubmitData.application?._id, 'Student submits verified membership application');
 
+    // 11d. Superadmin Approval & Credential Dispatch Email
     const appReviewRes = await fetch(`${baseUrl}/api/v1/applications/${appSubmitData.application._id}/review`, {
       method: 'PATCH',
       headers: {
@@ -233,6 +257,64 @@ async function runTests() {
     });
     const appReviewData = await appReviewRes.json();
     assert(appReviewRes.status === 200 && appReviewData.application?.status === 'APPROVED', 'Superadmin approves membership; credentials and automated email dispatched');
+
+    // 11e. Submit second application and test rejection email with feedback
+    const rejectedEmail = `rahul-${Date.now()}@kbtcoe.org`;
+    await fetch(`${baseUrl}/api/v1/applications/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: rejectedEmail }),
+    });
+    const rejOtpRes = await fetch(`${baseUrl}/api/v1/applications/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: rejectedEmail }),
+    });
+    const rejOtpData = await rejOtpRes.json();
+    await fetch(`${baseUrl}/api/v1/applications/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: rejectedEmail, otp: rejOtpData.devOtp }),
+    });
+    const rejAppRes = await fetch(`${baseUrl}/api/v1/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: 'Rahul More',
+        email: rejectedEmail,
+        phone: '9822114455',
+        academicYear: 'FE',
+        reasonForJoining: 'Want to learn programming.',
+        areasOfInterest: ['Public Relations & Outreach'],
+      }),
+    });
+    const rejAppData = await rejAppRes.json();
+
+    const rejectActionRes = await fetch(`${baseUrl}/api/v1/applications/${rejAppData.application._id}/review`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        status: 'REJECTED',
+        adminNotes: 'Due to domain vacancies being full, please attend our open technical workshops and re-apply in the next intake.',
+      }),
+    });
+    const rejectActionData = await rejectActionRes.json();
+    assert(
+      rejectActionRes.status === 200 && rejectActionData.application?.status === 'REJECTED',
+      'Superadmin rejects application; automated rejection feedback email dispatched'
+    );
+
+    // 11f. Export Applications CSV
+    const exportRes = await fetch(`${baseUrl}/api/v1/applications/export`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert(
+      exportRes.status === 200 && exportRes.headers.get('content-type')?.includes('text/csv'),
+      'Superadmin exports membership applications dossier as CSV for club records'
+    );
 
     // 12. Guest Event Registration without platform login (Change 3)
     const activeEvent = eventsData.events[0];

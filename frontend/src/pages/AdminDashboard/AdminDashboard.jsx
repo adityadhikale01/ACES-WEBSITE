@@ -38,7 +38,8 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Check,
-  ChevronRight
+  ChevronRight,
+  Phone
 } from "lucide-react";
 import { useAuth } from "../../auth/authContext.jsx";
 import { api } from "../../services/api.js";
@@ -223,13 +224,20 @@ export const AdminDashboard = () => {
   });
   const [assigningSubmitting, setAssigningSubmitting] = useState(false);
 
-  // Membership Application Review Modal state
+  // Membership Application Review Modal & Desk state
   const [reviewingApp, setReviewingApp] = useState(null);
   const [reviewAction, setReviewAction] = useState("APPROVED");
   const [appAssignedPost, setAppAssignedPost] = useState("ACES Member");
   const [appPostCategory, setAppPostCategory] = useState("MEMBER");
   const [appReviewNotes, setAppReviewNotes] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  // Membership Application Desk Filters & Inspector
+  const [appStatusTab, setAppStatusTab] = useState("PENDING"); // 'PENDING', 'ALL', 'APPROVED', 'REJECTED'
+  const [appYearFilter, setAppYearFilter] = useState("ALL");
+  const [appDomainFilter, setAppDomainFilter] = useState("ALL");
+  const [appSearchQuery, setAppSearchQuery] = useState("");
+  const [inspectingApp, setInspectingApp] = useState(null);
 
   // Designation modal state
   const [isDesgModalOpen, setIsDesgModalOpen] = useState(false);
@@ -2601,96 +2609,501 @@ export const AdminDashboard = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* MODULE 5: MEMBERSHIP APPLICATIONS */}
+        {/* MODULE 5: RECRUITMENT & MEMBERSHIP APPLICATIONS DESK */}
         {/* ========================================================================= */}
         {activeTab === "applications" && (isSuperAdmin || isPresident) && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Header & Organizer Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
               <div>
-                <h2 className="text-lg font-bold text-white">
-                  Student Membership Applications ({applications.length})
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-electric-blue/15 border border-electric-blue/30 text-[11px] text-electric-cyan font-semibold mb-1">
+                  <UserCheck size={12} />
+                  <span>CLUB RECRUITMENT & MEMBERSHIP DESK</span>
+                </div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  Membership Applications & Inductions
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/10 text-slate-300 font-normal">
+                    {applications.length} Total
+                  </span>
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Review applicant profiles. Approving assigns post, creates credentials, and sends official notification email.
+                  Manage applicant intake, review statements, conduct candidate interviews, appoint posts, and dispatch official email credentials or feedback.
                 </p>
               </div>
 
-              <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl">
-                Pending Review: <strong>{stats.pendingApplications || 0}</strong>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={api.applications.exportCSVUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                >
+                  <FileSpreadsheet size={14} className="text-emerald-400" />
+                  <span>Export CSV</span>
+                </a>
+                <button
+                  onClick={loadAllAdminData}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs transition-colors"
+                  title="Refresh Applications"
+                >
+                  <RefreshCw size={15} />
+                </button>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {applications.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-400 glass-card rounded-2xl">
-                  No membership applications submitted yet.
+            {/* KPI Metrics Ribbon */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="p-4 rounded-2xl bg-navy-900 border border-white/10 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Total Intake
+                </span>
+                <div className="text-2xl font-black text-white">{applications.length}</div>
+                <p className="text-[11px] text-slate-400">All student submissions</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-navy-900 border border-amber-500/30 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                    Awaiting Review
+                  </span>
+                  {applications.filter((a) => a.status === "PENDING").length > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  )}
                 </div>
-              ) : (
-                applications.map((app) => (
-                  <div
-                    key={app._id}
-                    className="p-5 rounded-2xl bg-navy-900 border border-white/10 space-y-3"
+                <div className="text-2xl font-black text-amber-300">
+                  {applications.filter((a) => a.status === "PENDING").length}
+                </div>
+                <p className="text-[11px] text-amber-300/70">Action required by committee</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-navy-900 border border-emerald-500/30 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                  Approved & Inducted
+                </span>
+                <div className="text-2xl font-black text-emerald-300">
+                  {applications.filter((a) => a.status === "APPROVED" || a.status === "ACCEPTED").length}
+                </div>
+                <p className="text-[11px] text-emerald-300/70">Platform accounts active</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-navy-900 border border-rose-500/20 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300">
+                  Not Selected
+                </span>
+                <div className="text-2xl font-black text-rose-300">
+                  {applications.filter((a) => a.status === "REJECTED").length}
+                </div>
+                <p className="text-[11px] text-rose-300/70">Feedback emails dispatched</p>
+              </div>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="p-4 rounded-2xl bg-navy-900 border border-white/10 space-y-3">
+              {/* Status Tabs */}
+              <div className="flex flex-wrap gap-2 border-b border-white/5 pb-3">
+                <button
+                  onClick={() => setAppStatusTab("PENDING")}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    appStatusTab === "PENDING"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Clock size={13} />
+                  <span>Awaiting Review</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/30 text-amber-200">
+                    {applications.filter((a) => a.status === "PENDING").length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAppStatusTab("ALL")}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    appStatusTab === "ALL"
+                      ? "bg-electric-blue text-white shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Users size={13} />
+                  <span>All Submissions</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white">
+                    {applications.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAppStatusTab("APPROVED")}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    appStatusTab === "APPROVED"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <CheckCircle size={13} />
+                  <span>Approved Members</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/30 text-emerald-200">
+                    {applications.filter((a) => a.status === "APPROVED" || a.status === "ACCEPTED").length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAppStatusTab("REJECTED")}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    appStatusTab === "REJECTED"
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <XCircle size={13} />
+                  <span>Not Selected</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500/30 text-rose-200">
+                    {applications.filter((a) => a.status === "REJECTED").length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Search, Year Filter, Domain Filter */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+                <div className="sm:col-span-6 relative">
+                  <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={appSearchQuery}
+                    onChange={(e) => setAppSearchQuery(e.target.value)}
+                    placeholder="Search applicant name, email, PRN, or phone..."
+                    className="w-full pl-9 pr-3.5 py-2 bg-navy-950 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-electric-cyan"
+                  />
+                  {appSearchQuery && (
+                    <button
+                      onClick={() => setAppSearchQuery("")}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-white text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+
+                <div className="sm:col-span-3">
+                  <select
+                    value={appYearFilter}
+                    onChange={(e) => setAppYearFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white focus:outline-none focus:border-electric-cyan"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
-                      <div>
-                        <h3 className="font-bold text-white text-sm">{app.fullName}</h3>
-                        <p className="text-[11px] text-slate-400">
-                          {app.email} • {app.phone ? `📞 ${app.phone} • ` : ""}{app.department} ({app.academicYear})
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                          app.status === "APPROVED"
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : app.status === "REJECTED"
-                            ? "bg-rose-500/20 text-rose-300"
-                            : "bg-amber-500/20 text-amber-300"
-                        }`}
+                    <option value="ALL">All Academic Years</option>
+                    <option value="FE">First Year (FE)</option>
+                    <option value="SE">Second Year (SE)</option>
+                    <option value="TE">Third Year (TE)</option>
+                    <option value="BE">Final Year (BE)</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-3">
+                  <select
+                    value={appDomainFilter}
+                    onChange={(e) => setAppDomainFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white focus:outline-none focus:border-electric-cyan"
+                  >
+                    <option value="ALL">All Interest Domains</option>
+                    <option value="Web">Web & Full-Stack</option>
+                    <option value="Data">DSA & Problem Solving</option>
+                    <option value="Intelligence">AI & Machine Learning</option>
+                    <option value="Cloud">Cloud & DevOps</option>
+                    <option value="Security">Cybersecurity</option>
+                    <option value="Event">Event Management</option>
+                    <option value="Design">Graphic Design & Media</option>
+                    <option value="Relations">PR & Outreach</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Applications List */}
+            {(() => {
+              const filteredList = applications.filter((app) => {
+                if (appStatusTab === "PENDING" && app.status !== "PENDING") return false;
+                if (appStatusTab === "APPROVED" && app.status !== "APPROVED" && app.status !== "ACCEPTED") return false;
+                if (appStatusTab === "REJECTED" && app.status !== "REJECTED") return false;
+
+                if (appYearFilter !== "ALL" && app.academicYear !== appYearFilter) return false;
+
+                if (appDomainFilter !== "ALL") {
+                  const domains = app.areasOfInterest || app.interestedDomains || [];
+                  if (!domains.some((d) => d.toLowerCase().includes(appDomainFilter.toLowerCase()))) {
+                    return false;
+                  }
+                }
+
+                if (appSearchQuery.trim()) {
+                  const q = appSearchQuery.toLowerCase();
+                  const matchName = app.fullName?.toLowerCase().includes(q);
+                  const matchEmail = app.email?.toLowerCase().includes(q);
+                  const matchPrn = (app.prn || app.prnOrRoll)?.toLowerCase().includes(q);
+                  const matchPhone = app.phone?.toLowerCase().includes(q);
+                  const matchPost = app.assignedPost?.toLowerCase().includes(q);
+                  if (!matchName && !matchEmail && !matchPrn && !matchPhone && !matchPost) {
+                    return false;
+                  }
+                }
+
+                return true;
+              });
+
+              if (filteredList.length === 0) {
+                return (
+                  <div className="p-12 text-center text-xs text-slate-400 glass-card rounded-3xl border border-white/10 space-y-2">
+                    <UserCheck size={32} className="mx-auto text-slate-500 mb-2 opacity-60" />
+                    <p className="font-bold text-white text-sm">No applications found</p>
+                    <p className="max-w-md mx-auto text-slate-400">
+                      {appSearchQuery || appYearFilter !== "ALL" || appDomainFilter !== "ALL"
+                        ? "No student applications match your current search and filter criteria. Try clearing filters."
+                        : appStatusTab === "PENDING"
+                        ? "Awesome! All incoming applications have been reviewed."
+                        : "No applications submitted in this category yet."}
+                    </p>
+                    {(appSearchQuery || appYearFilter !== "ALL" || appDomainFilter !== "ALL") && (
+                      <button
+                        onClick={() => {
+                          setAppSearchQuery("");
+                          setAppYearFilter("ALL");
+                          setAppDomainFilter("ALL");
+                        }}
+                        className="mt-2 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold"
                       >
-                        {app.status}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2 text-xs">
-                      <div>
-                        <strong className="text-slate-400 text-[10px] uppercase block">Reason for Joining:</strong>
-                        <p className="text-slate-200 mt-0.5">{app.reasonForJoining}</p>
-                      </div>
-
-                      {app.areasOfInterest?.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {app.areasOfInterest.map((a, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-cyan-300 border border-white/10"
-                            >
-                              {a}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {app.status === "PENDING" && (
-                      <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-                        <button
-                          onClick={() => openApproveModal(app)}
-                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-                        >
-                          Approve & Assign Post
-                        </button>
-                        <button
-                          onClick={() => openRejectModal(app)}
-                          className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition-colors"
-                        >
-                          Reject
-                        </button>
-                      </div>
+                        Reset Filters
+                      </button>
                     )}
                   </div>
-                ))
-              )}
-            </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  <div className="text-xs text-slate-400 flex items-center justify-between px-1">
+                    <span>
+                      Showing <strong>{filteredList.length}</strong> of {applications.length} applications
+                    </span>
+                    {appStatusTab === "PENDING" && (
+                      <span className="text-amber-300 flex items-center gap-1 font-semibold">
+                        <Clock size={12} /> Pending Decisions
+                      </span>
+                    )}
+                  </div>
+
+                  {filteredList.map((app) => {
+                    const initials = (app.fullName || "A")
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .substring(0, 2)
+                      .toUpperCase();
+                    const cleanPhone = (app.phone || "").replace(/\D/g, "");
+                    const isApproved = app.status === "APPROVED" || app.status === "ACCEPTED";
+                    const isRejected = app.status === "REJECTED";
+                    const isPending = app.status === "PENDING";
+
+                    return (
+                      <div
+                        key={app._id}
+                        className={`p-5 sm:p-6 rounded-3xl border transition-all ${
+                          isPending
+                            ? "bg-navy-900 border-amber-500/30 hover:border-amber-500/50"
+                            : isApproved
+                            ? "bg-navy-900/90 border-emerald-500/30"
+                            : "bg-navy-950/80 border-white/10 opacity-80"
+                        } space-y-4`}
+                      >
+                        {/* Top Card Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3.5">
+                          <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-electric-blue/30 to-indigo-600/30 border border-electric-cyan/40 text-electric-cyan font-bold flex items-center justify-center text-sm flex-shrink-0 shadow-sm">
+                              {initials}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-bold text-white text-base">{app.fullName}</h3>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-slate-300">
+                                  {app.academicYear} • {app.department || "Computer"}
+                                </span>
+                                {(app.prn || app.prnOrRoll) && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-navy-950 border border-white/10 text-slate-400">
+                                    PRN: {app.prn || app.prnOrRoll}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                                <a
+                                  href={`mailto:${app.email}`}
+                                  className="text-slate-300 hover:text-electric-cyan flex items-center gap-1 transition-colors"
+                                >
+                                  <Mail size={12} />
+                                  <span>{app.email}</span>
+                                </a>
+                                {app.phone && (
+                                  <span className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1 text-slate-300">
+                                      <Phone size={12} />
+                                      <span>{app.phone}</span>
+                                    </span>
+                                    {cleanPhone && (
+                                      <a
+                                        href={`https://wa.me/91${cleanPhone}?text=Hi%20${encodeURIComponent(
+                                          app.fullName
+                                        )},%20this%20is%20ACES%20KBTCOE%20Committee%20regarding%20your%20membership%20application.`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold transition-all"
+                                        title="Direct WhatsApp candidate for interview scheduling"
+                                      >
+                                        <MessageSquare size={10} />
+                                        <span>WhatsApp Interview</span>
+                                      </a>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 sm:self-start">
+                            <span
+                              className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                                isApproved
+                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                  : isRejected
+                                  ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                                  : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                              }`}
+                            >
+                              {isApproved ? (
+                                <CheckCircle size={12} />
+                              ) : isRejected ? (
+                                <XCircle size={12} />
+                              ) : (
+                                <Clock size={12} />
+                              )}
+                              <span>
+                                {isApproved
+                                  ? "Approved & Inducted"
+                                  : isRejected
+                                  ? "Not Selected"
+                                  : "Pending Review"}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Statement of Motivation Quote */}
+                        <div className="space-y-1.5 text-xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            Statement / Why Join ACES:
+                          </span>
+                          <div className="p-3 rounded-2xl bg-navy-950/70 border border-white/5 text-slate-200 italic leading-relaxed">
+                            "{app.reasonForJoining || "No motivation statement provided."}"
+                          </div>
+                        </div>
+
+                        {/* Domains of Interest Chips */}
+                        {(app.areasOfInterest?.length > 0 || app.interestedDomains?.length > 0) && (
+                          <div className="space-y-1 text-xs">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Domains of Interest:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(app.areasOfInterest || app.interestedDomains).map((domain, i) => (
+                                <span
+                                  key={i}
+                                  className="px-2.5 py-0.5 rounded-lg text-[10px] bg-electric-blue/10 text-electric-cyan border border-electric-cyan/20 font-medium"
+                                >
+                                  {domain}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Decision Outcome Information Strip */}
+                        {isApproved && (
+                          <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-1 text-xs text-emerald-200">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <span className="font-bold text-emerald-400">Appointed Role:</span>{" "}
+                                <strong className="text-white text-sm">
+                                  {app.assignedPost || "ACES Member"}
+                                </strong>
+                              </div>
+                              <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-semibold">
+                                <Check size={13} />
+                                <span>Platform Account Active & Credentials Dispatched</span>
+                              </span>
+                            </div>
+                            {app.reviewerNotes && (
+                              <p className="text-[11px] text-slate-300 italic">
+                                Note to Student: "{app.reviewerNotes}"
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {isRejected && (
+                          <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 space-y-1 text-xs text-rose-200">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-rose-400">Rejection Feedback Sent:</span>
+                              <span className="text-[10px] text-slate-400">Email Dispatched</span>
+                            </div>
+                            <p className="text-[11px] text-slate-300 italic">
+                              "{app.reviewerNotes || app.adminNotes || "Thank you for applying. We encourage you to participate in upcoming events."}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Action Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => setInspectingApp(app)}
+                            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Eye size={13} />
+                            <span>Inspect Full Dossier</span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            {isPending ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openApproveModal(app)}
+                                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5"
+                                >
+                                  <UserCheck size={14} />
+                                  <span>Approve & Appoint Post</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openRejectModal(app)}
+                                  className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold transition-colors flex items-center gap-1.5"
+                                >
+                                  <UserX size={14} />
+                                  <span>Reject</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => (isApproved ? openRejectModal(app) : openApproveModal(app))}
+                                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 text-xs transition-colors"
+                              >
+                                {isApproved ? "Change to Not Selected" : "Reconsider & Approve"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -3446,15 +3859,222 @@ export const AdminDashboard = () => {
         )}
 
         {/* ========================================================================= */}
+        {/* MODAL: APPLICANT DOSSIER INSPECTOR */}
+        {/* ========================================================================= */}
+        {inspectingApp && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+            <div className="relative w-full max-w-2xl bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-6 my-8 shadow-2xl">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-electric-blue/30 to-indigo-600/30 border border-electric-cyan/40 text-electric-cyan font-bold flex items-center justify-center text-base flex-shrink-0">
+                    {(inspectingApp.fullName || "A")
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .substring(0, 2)
+                      .toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <span>{inspectingApp.fullName}</span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          inspectingApp.status === "APPROVED" || inspectingApp.status === "ACCEPTED"
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            : inspectingApp.status === "REJECTED"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                            : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                        }`}
+                      >
+                        {inspectingApp.status === "APPROVED" || inspectingApp.status === "ACCEPTED"
+                          ? "Approved Member"
+                          : inspectingApp.status === "REJECTED"
+                          ? "Not Selected"
+                          : "Awaiting Review"}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {inspectingApp.academicYear} • {inspectingApp.department || "Computer Engineering"}
+                      {(inspectingApp.prn || inspectingApp.prnOrRoll) && (
+                        <span> • PRN: {inspectingApp.prn || inspectingApp.prnOrRoll}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setInspectingApp(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Contact Actions Bar */}
+              <div className="p-3.5 rounded-2xl bg-navy-950 border border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Candidate Contact</span>
+                  <div className="flex flex-wrap items-center gap-4 text-slate-300">
+                    <span className="flex items-center gap-1.5">
+                      <Mail size={13} className="text-electric-cyan" />
+                      <span>{inspectingApp.email}</span>
+                    </span>
+                    {inspectingApp.phone && (
+                      <span className="flex items-center gap-1.5">
+                        <Phone size={13} className="text-emerald-400" />
+                        <span>{inspectingApp.phone}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {inspectingApp.phone && (
+                    <a
+                      href={`https://wa.me/91${inspectingApp.phone.replace(/\D/g, "")}?text=Hi%20${encodeURIComponent(
+                        inspectingApp.fullName
+                      )},%20this%20is%20ACES%20KBTCOE%20Committee%20regarding%20your%20membership%20application.`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all"
+                    >
+                      <MessageSquare size={12} />
+                      <span>WhatsApp Candidate</span>
+                    </a>
+                  )}
+                  <a
+                    href={`mailto:${inspectingApp.email}`}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  >
+                    <Mail size={12} />
+                    <span>Send Email</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Statement of Purpose */}
+              <div className="space-y-2 text-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 block">
+                  Why do you want to join ACES? (Statement of Purpose):
+                </span>
+                <div className="p-4 rounded-2xl bg-navy-950 border border-white/10 text-slate-200 leading-relaxed italic text-sm">
+                  "{inspectingApp.reasonForJoining || "No motivation statement provided."}"
+                </div>
+              </div>
+
+              {/* Domains of Interest */}
+              {(inspectingApp.areasOfInterest?.length > 0 || inspectingApp.interestedDomains?.length > 0) && (
+                <div className="space-y-2 text-xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 block">
+                    Target Domains / Skills:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {(inspectingApp.areasOfInterest || inspectingApp.interestedDomains).map((domain, i) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1 rounded-xl text-xs bg-electric-blue/15 text-electric-cyan border border-electric-cyan/30 font-semibold"
+                      >
+                        {domain}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Current Appointment / Feedback Details */}
+              {(inspectingApp.status === "APPROVED" || inspectingApp.status === "ACCEPTED") && (
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-1.5 text-emerald-200">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-400">Appointed Post:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px]">
+                      {inspectingApp.postCategory || "MEMBER"}
+                    </span>
+                  </div>
+                  <strong className="text-white text-base block">{inspectingApp.assignedPost || "ACES Member"}</strong>
+                  {inspectingApp.reviewerNotes && (
+                    <p className="text-slate-300 italic pt-1 border-t border-emerald-500/20 mt-1">
+                      Note: "{inspectingApp.reviewerNotes}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {inspectingApp.status === "REJECTED" && (
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs space-y-1.5 text-rose-200">
+                  <span className="font-bold text-rose-400 block">Rejection Feedback Dispatched:</span>
+                  <p className="text-slate-300 italic">
+                    "{inspectingApp.reviewerNotes || inspectingApp.adminNotes || "Thank you for applying. We encourage you to participate in upcoming events."}"
+                  </p>
+                </div>
+              )}
+
+              {/* Footer Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-white/10">
+                <span className="text-[11px] text-slate-500">
+                  Submitted: {inspectingApp.createdAt ? new Date(inspectingApp.createdAt).toLocaleString("en-IN") : "Recently"}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInspectingApp(null)}
+                    className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold"
+                  >
+                    Close Dossier
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = inspectingApp;
+                      setInspectingApp(null);
+                      openApproveModal(target);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20"
+                  >
+                    {inspectingApp.status === "APPROVED" ? "Update Appointed Post" : "Approve & Appoint"}
+                  </button>
+
+                  {inspectingApp.status !== "REJECTED" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = inspectingApp;
+                        setInspectingApp(null);
+                        openRejectModal(target);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold"
+                    >
+                      Reject
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
         {/* MODAL 2: INTERACTIVE APPLICATION REVIEW (APPROVE / REJECT) */}
         {/* ========================================================================= */}
         {reviewingApp && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8">
+            <div className="relative w-full max-w-lg bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-5 my-8 shadow-2xl">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div>
-                  <h3 className="text-base font-bold text-white">
-                    {reviewAction === "APPROVED" ? "Approve ACES Membership" : "Reject Application"}
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    {reviewAction === "APPROVED" ? (
+                      <>
+                        <UserCheck size={18} className="text-emerald-400" />
+                        <span>Appoint Post & Approve Membership</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserX size={18} className="text-rose-400" />
+                        <span>Reject Application & Send Feedback</span>
+                      </>
+                    )}
                   </h3>
                   <p className="text-xs text-slate-400">Applicant: {reviewingApp.fullName}</p>
                 </div>
@@ -3479,74 +4099,148 @@ export const AdminDashboard = () => {
                 </div>
                 <div>
                   <span className="text-slate-400">Statement / Motivation:</span>
-                  <p className="text-slate-300 italic mt-0.5">{reviewingApp.reasonForJoining}</p>
+                  <p className="text-slate-300 italic mt-0.5 line-clamp-2">{reviewingApp.reasonForJoining}</p>
                 </div>
               </div>
 
               <form onSubmit={handleConfirmApplicationReview} className="space-y-4 text-xs">
                 {reviewAction === "APPROVED" ? (
                   <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="font-semibold text-slate-300 block mb-1">Assigned Post Title</label>
-                        <input
-                          type="text"
-                          required
-                          value={appAssignedPost}
-                          onChange={(e) => setAppAssignedPost(e.target.value)}
-                          placeholder="e.g. Vice President, Core Team"
-                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-semibold text-slate-300 block mb-1">Hierarchy Category</label>
-                        <select
-                          value={appPostCategory}
-                          onChange={(e) => setAppPostCategory(e.target.value)}
-                          className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
-                        >
-                          <option value="PRESIDENT">President</option>
-                          <option value="VICE_PRESIDENT">Vice President</option>
-                          <option value="EXECUTION_TEAM">Execution Team</option>
-                          <option value="MEMBER">ACES Member</option>
-                        </select>
+                    <div className="space-y-2">
+                      <label className="font-semibold text-slate-300 block">
+                        Assigned Post Title *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={appAssignedPost}
+                        onChange={(e) => setAppAssignedPost(e.target.value)}
+                        placeholder="e.g. Technical Team Lead, Core Committee"
+                        className="w-full px-3.5 py-2.5 bg-navy-950 border border-white/10 rounded-xl text-white focus:outline-none focus:border-electric-cyan"
+                      />
+
+                      {/* Quick Post Chips */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {[
+                          { title: "Technical Team Lead", cat: "EXECUTION_TEAM" },
+                          { title: "Execution Team Lead", cat: "EXECUTION_TEAM" },
+                          { title: "Webmaster", cat: "EXECUTION_TEAM" },
+                          { title: "Event Coordinator", cat: "EXECUTION_TEAM" },
+                          { title: "Publicity & Media Lead", cat: "EXECUTION_TEAM" },
+                          { title: "Design Specialist", cat: "MEMBER" },
+                          { title: "Core Committee Member", cat: "MEMBER" },
+                          { title: "Vice President", cat: "VICE_PRESIDENT" },
+                        ].map((chip) => (
+                          <button
+                            key={chip.title}
+                            type="button"
+                            onClick={() => {
+                              setAppAssignedPost(chip.title);
+                              setAppPostCategory(chip.cat);
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] border transition-all ${
+                              appAssignedPost === chip.title
+                                ? "bg-electric-blue text-white border-electric-cyan"
+                                : "bg-white/5 text-slate-300 hover:text-white border-white/10"
+                            }`}
+                          >
+                            + {chip.title}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
                     <div>
                       <label className="font-semibold text-slate-300 block mb-1">
-                        Welcome Message / Instructions (Sent via Email)
+                        Hierarchy Category
+                      </label>
+                      <select
+                        value={appPostCategory}
+                        onChange={(e) => setAppPostCategory(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-navy-950 border border-white/10 rounded-xl text-white focus:outline-none focus:border-electric-cyan"
+                      >
+                        <option value="MEMBER">ACES Member</option>
+                        <option value="EXECUTION_TEAM">Execution Team</option>
+                        <option value="VICE_PRESIDENT">Vice President</option>
+                        <option value="PRESIDENT">President</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-300 block mb-1">
+                        Welcome Message / Instructions (Dispatched via Email)
                       </label>
                       <textarea
                         rows={2}
                         value={appReviewNotes}
                         onChange={(e) => setAppReviewNotes(e.target.value)}
-                        className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        placeholder="Welcome message sent in the approval pass email..."
+                        className="w-full px-3.5 py-2.5 bg-navy-950 border border-white/10 rounded-xl text-white focus:outline-none focus:border-electric-cyan"
                       />
                     </div>
 
-                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px]">
-                      ✓ Approving will activate their platform account, set their post, and dispatch an automated welcome email with login credentials.
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-[11px] space-y-1">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <CheckCircle size={13} />
+                        <span>Automated Onboarding Dispatch</span>
+                      </p>
+                      <p className="text-slate-300 leading-relaxed">
+                        Approving will activate their platform account, publish their appointed post on the public Team page, and dispatch an official welcome email containing their <strong>login email and temporary password</strong>.
+                      </p>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div>
-                      <label className="font-semibold text-slate-300 block mb-1">
-                        Rejection Reason / Feedback (Sent via Email) *
+                    <div className="space-y-2">
+                      <label className="font-semibold text-slate-300 block">
+                        Rejection Reason / Constructive Feedback (Dispatched via Email) *
                       </label>
+
+                      {/* Feedback Template Chips */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          {
+                            label: "Intake Limit Reached",
+                            text: "Due to very high application volume and limited domain seats this academic cycle, we are unable to accept your application at this time.",
+                          },
+                          {
+                            label: "Domain Slots Filled",
+                            text: "The positions for your requested interest domains have been filled. We encourage you to participate in upcoming ACES technical events and workshops.",
+                          },
+                          {
+                            label: "Prerequisites Mismatch",
+                            text: "We noticed some details in your application did not align with current project requirements. We encourage you to build your skill portfolio and re-apply in the next intake.",
+                          },
+                        ].map((tpl) => (
+                          <button
+                            key={tpl.label}
+                            type="button"
+                            onClick={() => setAppReviewNotes(tpl.text)}
+                            className="px-2 py-0.5 rounded-lg text-[10px] bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10"
+                          >
+                            + {tpl.label}
+                          </button>
+                        ))}
+                      </div>
+
                       <textarea
                         rows={3}
                         required
-                        placeholder="Please explain why the application was not accepted at this time..."
+                        placeholder="Please provide constructive feedback to help the student improve..."
                         value={appReviewNotes}
                         onChange={(e) => setAppReviewNotes(e.target.value)}
-                        className="w-full px-3 py-2 bg-navy-950 border border-white/10 rounded-xl text-white"
+                        className="w-full px-3.5 py-2.5 bg-navy-950 border border-white/10 rounded-xl text-white focus:outline-none focus:border-rose-400"
                       />
                     </div>
 
-                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px]">
-                      ⚠️ Rejecting will dispatch an automated email with your feedback to {reviewingApp.email}.
+                    <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-[11px] space-y-1">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <AlertTriangle size={13} />
+                        <span>Automated Feedback Dispatch</span>
+                      </p>
+                      <p className="text-slate-300 leading-relaxed">
+                        Rejecting will dispatch an official notification email containing this feedback to <strong>{reviewingApp.email}</strong>, thanking them and inviting them to open club activities.
+                      </p>
                     </div>
                   </>
                 )}
@@ -3562,17 +4256,17 @@ export const AdminDashboard = () => {
                   <button
                     type="submit"
                     disabled={reviewSubmitting}
-                    className={`px-5 py-2 rounded-xl text-white text-xs font-bold ${
+                    className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all ${
                       reviewAction === "APPROVED"
-                        ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/20"
-                        : "bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-600/20"
+                        ? "bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/25"
+                        : "bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-600/25"
                     }`}
                   >
                     {reviewSubmitting
-                      ? "Processing..."
+                      ? "Processing & Dispatching Email..."
                       : reviewAction === "APPROVED"
-                      ? "Confirm & Approve (Send Credentials Email)"
-                      : "Confirm Rejection (Send Email)"}
+                      ? "Confirm & Appoint (Send Credentials Email)"
+                      : "Confirm Rejection (Send Feedback Email)"}
                   </button>
                 </div>
               </form>
