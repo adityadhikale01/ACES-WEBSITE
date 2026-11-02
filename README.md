@@ -2,7 +2,8 @@
 
 Official full-stack web application for **ACES KBTCOE** (Computer Engineering Students' Association), Department of Computer Engineering, MVPS's KBT College of Engineering, Nashik.
 
---------------------------------------------------------------------------
+-----------------------------
+
 
 ## 🌟 Overview & Identity
 
