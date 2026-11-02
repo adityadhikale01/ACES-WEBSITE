@@ -408,6 +408,91 @@ async function runTests() {
       'Event Operations Desk: Past event status successfully closed / completed by organizer'
     );
 
+    // 17. Event Poster Upload (A4 High-Res Poster)
+    const fakePosterBuffer = Buffer.from('FAKE_A4_IMAGE_DATA_PNG');
+    const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
+    const posterBody = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="poster"; filename="a4_poster.png"\r\nContent-Type: image/png\r\n\r\n`),
+      fakePosterBuffer,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+
+    const uploadPosterRes = await fetch(`${baseUrl}/api/v1/events/upload-poster`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body: posterBody,
+    });
+    const uploadPosterData = await uploadPosterRes.json();
+    assert(
+      uploadPosterRes.status === 200 && uploadPosterData.success === true && !!uploadPosterData.posterUrl,
+      `Event Poster Upload: A4 Poster successfully saved (${uploadPosterData.posterUrl})`
+    );
+
+    // 18. QR Code Check-In Scanner (Attendee Check-In)
+    // Reopen event for fresh test registration
+    await fetch(`${baseUrl}/api/v1/events/${freeEvent._id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ status: 'PUBLISHED' }),
+    });
+
+    const freshStudentEmail = `vikram-${Date.now()}@kbtcoe.in`;
+    const freshRegRes = await fetch(`${baseUrl}/api/v1/registrations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventId: freeEvent._id,
+        fullName: 'Vikram Shinde',
+        email: freshStudentEmail,
+        phone: '9822334455',
+        department: 'Computer Engineering',
+        academicYear: 'TE',
+      }),
+    });
+    const freshRegData = await freshRegRes.json();
+    const freshTicketId = freshRegData.registration?.ticketId;
+
+    const scanCheckinRes = await fetch(`${baseUrl}/api/v1/registrations/scan-checkin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        ticketId: freshTicketId,
+        eventId: freeEvent._id,
+      }),
+    });
+    const scanCheckinData = await scanCheckinRes.json();
+    assert(
+      scanCheckinRes.status === 200 && scanCheckinData.success === true && scanCheckinData.newlyCheckedIn === true,
+      `QR Scanner: Attendee check-in confirmed via QR/Ticket (${scanCheckinData.message})`
+    );
+
+    // 19. Duplicate QR Scan Detection
+    const duplicateScanRes = await fetch(`${baseUrl}/api/v1/registrations/scan-checkin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        ticketId: freshTicketId,
+        eventId: freeEvent._id,
+      }),
+    });
+    const duplicateScanData = await duplicateScanRes.json();
+    assert(
+      duplicateScanRes.status === 200 && duplicateScanData.alreadyCheckedIn === true,
+      `QR Scanner: Duplicate scan detected & warned properly (${duplicateScanData.message})`
+    );
+
     console.log('\n======================================================');
     console.log(`🏁 TEST EXECUTION COMPLETE: ${passed} PASSED, ${failed} FAILED`);
     console.log('======================================================\n');

@@ -64,6 +64,8 @@ export const api = {
     create: (body) => request('/events', { method: 'POST', body: JSON.stringify(body) }),
     update: (id, body) => request(`/events/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id) => request(`/events/${id}`, { method: 'DELETE' }),
+    uploadPoster: (formData) => request('/events/upload-poster', { method: 'POST', body: formData }),
+    uploadPaymentQr: (formData) => request('/events/upload-payment-qr', { method: 'POST', body: formData }),
   },
 
   // Registrations
@@ -82,6 +84,8 @@ export const api = {
       request(`/registrations/${id}/attendance`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     markAttendance: (id, attended) =>
       request(`/registrations/${id}/attendance`, { method: 'PATCH', body: JSON.stringify({ attended }) }),
+    scanCheckIn: (body) =>
+      request('/registrations/scan-checkin', { method: 'POST', body: JSON.stringify(body) }),
     getExportUrl: (eventId) => `${API_BASE}/registrations/event/${eventId}/export`,
   },
 

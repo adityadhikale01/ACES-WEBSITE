@@ -176,23 +176,29 @@ export const registerForEvent = async (req, res, next) => {
       $inc: { registrationCount: 1, registeredCount: 1 },
     });
 
-    // Send confirmation pass email immediately for free event registration
+    const formattedDate = (event.startDate || event.eventDate)
+      ? new Date(event.startDate || event.eventDate).toLocaleDateString('en-IN', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      : 'Date to be announced';
+
+    // Send confirmation pass email immediately for free event registration with rich event dossier
     sendFreeEventRegistrationEmail({
       to: regEmail,
       studentName: regName,
       eventTitle: event.title,
+      eventCode: event.eventCode || '',
+      category: event.category || 'WORKSHOP',
+      description: event.shortDescription || event.subtitle || event.description || '',
       ticketId,
-      eventDate: event.startDate
-        ? new Date(event.startDate).toLocaleDateString('en-IN', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })
-        : '',
-      timeString: event.timeString || '',
-      venue: event.venue || 'Seminar Hall, KBTCOE',
+      eventDate: formattedDate,
+      timeString: event.timeString || '10:00 AM - 1:00 PM',
+      venue: event.venue || 'Dept. of Computer Engineering, MVPS KBTCOE Nashik',
       whatsappGroupUrl,
+      posterUrl: event.posterUrl || '',
       isGroupRegistration: Boolean(isGroupRegistration || parsedGroupMembers.length > 0),
       groupName: groupName || (isGroupRegistration ? `${regName}'s Team` : ''),
       groupMembers: parsedGroupMembers,
@@ -278,6 +284,7 @@ export const updateAttendance = async (req, res, next) => {
       status: newStatus,
       attended: isAttended,
       attendanceMarkedAt: isAttended ? new Date() : null,
+      attendanceMarkedBy: isAttended ? (req.user?.fullName || req.user?.name || 'Admin') : '',
     },
     { new: true }
   );
@@ -290,6 +297,113 @@ export const updateAttendance = async (req, res, next) => {
     success: true,
     message: 'Attendance updated successfully',
     registration,
+  });
+};
+
+export const scanAttendanceCheckIn = async (req, res, next) => {
+  const { ticketId, qrData, eventId, prn, email } = req.body;
+  let rawCode = (qrData || ticketId || prn || email || '').trim();
+
+  if (!rawCode) {
+    return next(new AppError('No ticket code or QR data provided for check-in', 400));
+  }
+
+  // Smart parser: handles JSON string, check-in URLs with query param, or raw ticket ID
+  let parsedTicket = rawCode;
+  if (rawCode.startsWith('{') && rawCode.endsWith('}')) {
+    try {
+      const obj = JSON.parse(rawCode);
+      parsedTicket = obj.ticketId || obj.ticket || obj.id || rawCode;
+    } catch {}
+  } else if (rawCode.includes('http') || rawCode.includes('?')) {
+    try {
+      const url = new URL(rawCode);
+      parsedTicket = url.searchParams.get('ticketId') || url.searchParams.get('ticket') || parsedTicket;
+    } catch {}
+  }
+
+  // Extract ACES ticket ID if embedded in string
+  const ticketMatch = parsedTicket.match(/ACES-[A-Z0-9-]+/i);
+  const targetTicketId = ticketMatch ? ticketMatch[0].toUpperCase() : parsedTicket;
+
+  // Search query
+  const query = {
+    $or: [
+      { ticketId: targetTicketId },
+      { ticketId: new RegExp(`^${targetTicketId}$`, 'i') },
+      { prn: rawCode },
+      { prnOrRoll: rawCode },
+      { email: rawCode.toLowerCase() },
+    ],
+  };
+
+  if (eventId) {
+    query.eventId = eventId;
+  }
+
+  let registration = await Registration.findOne(query).populate('eventId');
+  let eventMismatchNotice = null;
+
+  // Fallback: If not found under eventId, search across all events
+  if (!registration && eventId) {
+    const fallbackQuery = {
+      $or: [
+        { ticketId: targetTicketId },
+        { ticketId: new RegExp(`^${targetTicketId}$`, 'i') },
+        { prn: rawCode },
+        { prnOrRoll: rawCode },
+        { email: rawCode.toLowerCase() },
+      ],
+    };
+    const otherEventReg = await Registration.findOne(fallbackQuery).populate('eventId');
+    if (otherEventReg) {
+      registration = otherEventReg;
+      eventMismatchNotice = `Scanned ticket is for "${otherEventReg.eventId?.title || 'Another Event'}"`;
+    }
+  }
+
+  if (!registration) {
+    return res.status(404).json({
+      success: false,
+      message: `No registration found matching ticket code or PRN: "${targetTicketId}"`,
+      scannedCode: targetTicketId,
+    });
+  }
+
+  const eventTitle = registration.eventId?.title || 'ACES Event';
+  const attendeeName = registration.fullName || registration.name || 'Participant';
+
+  // Check if attendee was already checked in
+  if (registration.attended) {
+    return res.status(200).json({
+      success: true,
+      alreadyCheckedIn: true,
+      newlyCheckedIn: false,
+      message: `⚠️ ${attendeeName} was ALREADY checked in!`,
+      checkedInAt: registration.attendanceMarkedAt,
+      checkedInBy: registration.attendanceMarkedBy || 'Desk Admin',
+      registration,
+      eventTitle,
+    });
+  }
+
+  // Mark attendance
+  registration.attended = true;
+  registration.status = 'ATTENDED';
+  registration.attendanceMarkedAt = new Date();
+  registration.attendanceMarkedBy = req.user?.fullName || req.user?.name || 'ACES Admin';
+  await registration.save();
+
+  return res.status(200).json({
+    success: true,
+    alreadyCheckedIn: false,
+    newlyCheckedIn: true,
+    message: eventMismatchNotice
+      ? `✓ Attendance confirmed for ${attendeeName}! (${eventMismatchNotice})`
+      : `✓ Attendance confirmed for ${attendeeName}!`,
+    registration,
+    eventTitle,
+    mismatchNotice: eventMismatchNotice,
   });
 };
 

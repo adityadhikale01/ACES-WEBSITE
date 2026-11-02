@@ -289,33 +289,54 @@ export const EventDetailPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Event Details */}
           <div className="lg:col-span-8 space-y-8">
-            {/* Poster Card */}
-            <div className="relative rounded-3xl overflow-hidden border border-white/10 aspect-[16/9] bg-navy-900 group">
+            {/* Poster Card (A4 & Landscape Adaptive with Ambient Backdrop) */}
+            <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-navy-950 group min-h-[320px] max-h-[620px] flex items-center justify-center">
+              {/* Ambient Glow / Backdrop */}
+              <img
+                src={event.posterUrl || '/assets/aces-team.jpg'}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-25 scale-110 pointer-events-none"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-navy-950/40 pointer-events-none" />
+
+              {/* Main Adaptive Event Poster */}
               <img
                 src={event.posterUrl || '/assets/aces-team.jpg'}
                 alt={event.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                className="relative z-10 max-h-[600px] w-auto max-w-full object-contain rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.01]"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-navy-950 via-transparent to-transparent" />
-              <div className="absolute top-4 left-4 flex gap-2">
-                <span className="px-3 py-1 rounded-lg bg-electric-blue/90 text-white font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md">
+
+              <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2">
+                <span className="px-3 py-1 rounded-lg bg-electric-blue/90 text-white font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md shadow-md">
                   {event.category}
                 </span>
                 {event.isPaid ? (
-                  <span className="px-3 py-1 rounded-lg bg-amber-500/90 text-navy-950 font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md">
+                  <span className="px-3 py-1 rounded-lg bg-amber-500/90 text-navy-950 font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md shadow-md">
                     PAID • {feeDisplay}
                   </span>
                 ) : (
-                  <span className="px-3 py-1 rounded-lg bg-emerald-500/90 text-navy-950 font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md">
+                  <span className="px-3 py-1 rounded-lg bg-emerald-500/90 text-navy-950 font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md shadow-md">
                     FREE EVENT
                   </span>
                 )}
                 {event.isGroupEvent && (
-                  <span className="px-3 py-1 rounded-lg bg-indigo-500/90 text-white font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md">
+                  <span className="px-3 py-1 rounded-lg bg-indigo-500/90 text-white font-extrabold text-[10px] uppercase tracking-wider backdrop-blur-md shadow-md">
                     GROUP EVENT (MAX {event.maxGroupSize || 4})
                   </span>
                 )}
               </div>
+
+              {event.posterUrl && (
+                <a
+                  href={event.posterUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-4 right-4 z-20 px-3 py-1.5 rounded-xl bg-navy-900/80 hover:bg-navy-800 text-white text-[11px] font-bold backdrop-blur-md border border-white/15 shadow-lg transition-all inline-flex items-center gap-1.5"
+                >
+                  <span>🔍 View Full A4 Poster</span>
+                </a>
+              )}
             </div>
 
             {/* Title & Description */}
@@ -929,6 +950,23 @@ export const EventDetailPage = () => {
                     <div className="text-[11px] text-slate-400 pt-1 border-t border-white/5 flex flex-wrap justify-between gap-2">
                       <span>Participant: <strong className="text-white">{nameInput || registrationData?.fullName}</strong></span>
                       <span>Venue: <strong className="text-white">{event.venue}</strong></span>
+                    </div>
+
+                    {/* Embedded QR Code for Instant Entry Scan */}
+                    <div className="pt-3 text-center border-t border-white/10">
+                      <div className="p-2.5 bg-white rounded-2xl inline-block shadow-xl shadow-cyan-500/10">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(assignedTicketId || registrationData?.ticketId || 'ACES-PASS')}`}
+                          alt="Ticket Pass QR"
+                          className="w-28 h-28 object-contain"
+                        />
+                      </div>
+                      <p className="text-[10px] text-electric-cyan font-bold mt-1.5">
+                        📷 Show this QR Code at the event entrance for instant check-in
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        A verified entry pass with QR code has also been sent to your email.
+                      </p>
                     </div>
                   </div>
 

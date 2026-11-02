@@ -130,6 +130,10 @@ const registrationSchema = new mongoose.Schema(
     attendanceMarkedAt: {
       type: Date,
     },
+    attendanceMarkedBy: {
+      type: String,
+      default: '',
+    },
     notes: {
       type: String,
       default: '',

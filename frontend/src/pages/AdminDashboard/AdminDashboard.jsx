@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Users,
@@ -39,8 +39,15 @@ import {
   FileSpreadsheet,
   Check,
   ChevronRight,
-  Phone
+  Phone,
+  Camera,
+  QrCode,
+  CheckCircle2,
+  Volume2,
+  Trash2,
+  FolderUp
 } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 import { useAuth } from "../../auth/authContext.jsx";
 import { api } from "../../services/api.js";
 
@@ -183,7 +190,9 @@ export const AdminDashboard = () => {
     isFeatured: false,
     isPaid: false,
     feeInRupees: 0,
-    paymentUpiId: "aceskbtcoe@okaxis",
+    paymentQrUrl: "",
+    upiQrCodeUrl: "",
+    paymentUpiId: "aces.kbtcoe@upi",
     paymentInstructions: "Pay via UPI and enter transaction UTR.",
     refundPolicy: "Non-refundable once confirmed.",
     whatsappGroupUrl: "https://chat.whatsapp.com/ACES-KBTCOE-Events",
@@ -192,6 +201,23 @@ export const AdminDashboard = () => {
     groupMembers: []
   };
   const [eventForm, setEventForm] = useState(defaultEventForm);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [posterError, setPosterError] = useState("");
+  const [uploadingPaymentQr, setUploadingPaymentQr] = useState(false);
+  const [paymentQrError, setPaymentQrError] = useState("");
+
+  // Live QR Attendance Scanner Desk state
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+  const [scannerMode, setScannerMode] = useState("camera"); // "camera" | "file" | "manual"
+  const [scanningFile, setScanningFile] = useState(false);
+  const [scanningEventId, setScanningEventId] = useState("ALL");
+  const [scanFeedback, setScanFeedback] = useState(null);
+  const [manualTicketCode, setManualTicketCode] = useState("");
+  const [scanLoading, setScanLoading] = useState(false);
+  const [sessionCheckIns, setSessionCheckIns] = useState([]);
+  const [cameraFacing, setCameraFacing] = useState("environment"); // "environment" | "user"
+  const qrScannerRef = useRef(null);
+  const isScanningRef = useRef(false);
 
   // Team committee member modal state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -348,7 +374,7 @@ export const AdminDashboard = () => {
         emailRes
       ] = await Promise.all([
         api.admin.getStats().catch(() => ({ success: false })),
-        !isFacOnly ? api.events.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
+        !isFacOnly ? api.events.getAll({ status: "ALL" }).catch(() => ({ success: false })) : Promise.resolve({ success: false }),
         !isFacOnly ? api.applications.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
         !isFacOnly ? api.contact.getAll().catch(() => ({ success: false })) : Promise.resolve({ success: false }),
         !isFacOnly ? (api.team.getAllAdmin ? api.team.getAllAdmin() : api.team.getAll()).catch(() => ({ success: false })) : Promise.resolve({ success: false }),
@@ -460,16 +486,332 @@ export const AdminDashboard = () => {
     }
   };
 
+  // Poster Upload Handler (Supports A4 High-Res Posters up to 50MB)
+  const handlePosterUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload a valid image file (PNG, JPG, JPEG, WEBP)");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      alert("Poster file size exceeds 50MB limit.");
+      return;
+    }
+
+    try {
+      setUploadingPoster(true);
+      setPosterError("");
+      const formData = new FormData();
+      formData.append("poster", file);
+      const res = await api.events.uploadPoster(formData);
+      if (res.success && (res.posterUrl || res.url)) {
+        const url = res.posterUrl || res.url;
+        setEventForm((prev) => ({ ...prev, posterUrl: url }));
+      }
+    } catch (err) {
+      setPosterError(err.message || "Failed to upload poster");
+      alert(err.message || "Failed to upload poster");
+    } finally {
+      setUploadingPoster(false);
+    }
+  };
+
+  // Payment QR Upload Handler for Paid Events
+  const handlePaymentQrUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload a valid image file (PNG, JPG, JPEG, WEBP)");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      alert("Payment QR file size exceeds 20MB limit.");
+      return;
+    }
+
+    try {
+      setUploadingPaymentQr(true);
+      setPaymentQrError("");
+      const formData = new FormData();
+      formData.append("qr", file);
+      const res = await api.events.uploadPaymentQr(formData);
+      if (res.success && (res.paymentQrUrl || res.url)) {
+        const url = res.paymentQrUrl || res.url;
+        setEventForm((prev) => ({
+          ...prev,
+          paymentQrUrl: url,
+          upiQrCodeUrl: url
+        }));
+      }
+    } catch (err) {
+      setPaymentQrError(err.message || "Failed to upload payment QR code");
+      alert(err.message || "Failed to upload payment QR code");
+    } finally {
+      setUploadingPaymentQr(false);
+    }
+  };
+
+  // Decode QR from uploaded image/screenshot directly without webcam
+  const handleQrFileUpload = async (file) => {
+    if (!file) return;
+    try {
+      setScanningFile(true);
+      setScanFeedback(null);
+      const scanner = new Html5Qrcode("qr-file-detector-hidden");
+      const decodedText = await scanner.scanFile(file, true);
+      try {
+        await scanner.clear();
+      } catch {}
+      if (decodedText) {
+        handleScanTicket(decodedText);
+      }
+    } catch (err) {
+      playBeep("error");
+      setScanFeedback({
+        type: "error",
+        message: "No readable QR code found in this image. Please ensure the QR is clear and well-lit, or use manual Ticket ID entry.",
+      });
+    } finally {
+      setScanningFile(false);
+    }
+  };
+
+  // Web Audio feedback for instant auditory confirmation
+  const playBeep = (type = "success") => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === "success") {
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      } else if (type === "warning") {
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.setValueAtTime(330, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      } else {
+        osc.frequency.setValueAtTime(220, ctx.currentTime);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      }
+    } catch {}
+  };
+
+  const handleScanTicket = async (ticketCode) => {
+    const raw = (ticketCode || "").trim();
+    if (!raw) return;
+
+    try {
+      setScanLoading(true);
+      const res = await api.registrations.scanCheckIn({
+        qrData: raw,
+        eventId: scanningEventId !== "ALL" ? scanningEventId : undefined,
+      });
+
+      if (res.success) {
+        if (res.newlyCheckedIn) {
+          playBeep("success");
+          setScanFeedback({
+            type: "success",
+            message: res.message || "Check-in confirmed!",
+            attendee: res.registration,
+            eventTitle: res.eventTitle,
+          });
+          setSessionCheckIns((prev) => [
+            {
+              id: res.registration._id,
+              ticketId: res.registration.ticketId,
+              name: res.registration.fullName || res.registration.name,
+              prn: res.registration.prn || res.registration.prnOrRoll,
+              eventTitle: res.eventTitle,
+              time: new Date().toLocaleTimeString(),
+              status: "CONFIRMED",
+            },
+            ...prev,
+          ]);
+          // Refresh event desk attendees if opened
+          if (selectedEventForDesk?._id) {
+            api.registrations.getAttendees(selectedEventForDesk._id).then((r) => {
+              if (r.success && r.attendees) setAttendees(r.attendees);
+            });
+          }
+          setManualTicketCode("");
+        } else if (res.alreadyCheckedIn) {
+          playBeep("warning");
+          setScanFeedback({
+            type: "warning",
+            message: res.message || "Already checked in!",
+            attendee: res.registration,
+            eventTitle: res.eventTitle,
+            checkedInAt: res.checkedInAt,
+          });
+          setManualTicketCode("");
+        }
+      }
+    } catch (err) {
+      playBeep("error");
+      setScanFeedback({
+        type: "error",
+        message: err.message || "Registration not found for scanned ticket code.",
+        code: raw,
+      });
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  // Camera scanner lifecycle
+  useEffect(() => {
+    let activeScanner = null;
+    let isCancelled = false;
+
+    if (isScannerModalOpen && scannerMode === "camera") {
+      const timer = setTimeout(async () => {
+        try {
+          const scannerElement = document.getElementById("qr-scanner-viewport");
+          if (!scannerElement || isCancelled) return;
+
+          activeScanner = new Html5Qrcode("qr-scanner-viewport");
+          qrScannerRef.current = activeScanner;
+
+          const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          };
+
+          let lastScannedText = "";
+          let lastScannedTime = 0;
+
+          const onScanSuccess = (decodedText) => {
+            const nowTime = Date.now();
+            if (decodedText === lastScannedText && nowTime - lastScannedTime < 2500) {
+              return;
+            }
+            lastScannedText = decodedText;
+            lastScannedTime = nowTime;
+            handleScanTicket(decodedText);
+          };
+
+          // Detect cameras and avoid OverconstrainedError
+          const cameras = await Html5Qrcode.getCameras().catch(() => []);
+          let cameraConfig = { facingMode: cameraFacing };
+
+          if (cameras && cameras.length > 0) {
+            if (cameraFacing === "environment") {
+              const backCam = cameras.find((c) =>
+                /back|rear|environment/i.test(c.label)
+              );
+              cameraConfig = backCam ? backCam.id : cameras[cameras.length - 1].id;
+            } else {
+              const frontCam = cameras.find((c) =>
+                /front|user|selfie/i.test(c.label)
+              );
+              cameraConfig = frontCam ? frontCam.id : cameras[0].id;
+            }
+          }
+
+          try {
+            await activeScanner.start(cameraConfig, config, onScanSuccess, () => {});
+            isScanningRef.current = true;
+          } catch (startErr) {
+            console.warn("Primary camera start error, attempting fallback camera:", startErr);
+            // Fallback without overconstrained facingMode constraint
+            await activeScanner.start(
+              cameras && cameras.length > 0 ? cameras[0].id : { facingMode: "user" },
+              config,
+              onScanSuccess,
+              () => {}
+            );
+            isScanningRef.current = true;
+          }
+        } catch (err) {
+          console.warn("Camera start error:", err);
+          if (!isCancelled) {
+            setScanFeedback({
+              type: "error",
+              message: "Camera access unavailable or not permitted. You can switch to Upload QR Screenshot or enter Ticket ID manually.",
+            });
+          }
+        }
+      }, 350);
+
+      return () => {
+        isCancelled = true;
+        clearTimeout(timer);
+        if (qrScannerRef.current && isScanningRef.current) {
+          qrScannerRef.current
+            .stop()
+            .then(() => {
+              try {
+                qrScannerRef.current?.clear();
+              } catch {}
+              isScanningRef.current = false;
+            })
+            .catch(() => {
+              isScanningRef.current = false;
+            });
+        }
+      };
+    }
+  }, [isScannerModalOpen, scannerMode, cameraFacing]);
+
   // Event Management Handlers
   const handleSaveEvent = async (e) => {
     e.preventDefault();
     try {
+      if (!eventForm.title?.trim()) {
+        alert("Event title is required");
+        return;
+      }
+
+      // Safe date formatting
+      let startDateIso = undefined;
+      if (eventForm.startDate) {
+        const d = new Date(eventForm.startDate);
+        if (!isNaN(d.getTime())) startDateIso = d.toISOString();
+      }
+      if (!startDateIso) {
+        alert("Please select a valid start date & time for the event.");
+        return;
+      }
+
+      let registrationDeadlineIso = undefined;
+      if (eventForm.registrationDeadline) {
+        const d = new Date(eventForm.registrationDeadline);
+        if (!isNaN(d.getTime())) registrationDeadlineIso = d.toISOString();
+      }
+
+      let endDateIso = undefined;
+      if (eventForm.endDate) {
+        const d = new Date(eventForm.endDate);
+        if (!isNaN(d.getTime())) endDateIso = d.toISOString();
+      }
+
       const payload = {
         ...eventForm,
-        fee: Math.round(eventForm.feeInRupees * 100),
-        startDate: new Date(eventForm.startDate).toISOString(),
-        registrationDeadline: new Date(eventForm.registrationDeadline).toISOString(),
-        endDate: eventForm.endDate ? new Date(eventForm.endDate).toISOString() : undefined,
+        title: eventForm.title.trim(),
+        eventCode: eventForm.eventCode ? eventForm.eventCode.trim().toUpperCase() : undefined,
+        posterUrl: eventForm.posterUrl || "",
+        paymentQrUrl: eventForm.paymentQrUrl || "",
+        upiQrCodeUrl: eventForm.paymentQrUrl || "",
+        paymentUpiId: eventForm.paymentUpiId || "aces.kbtcoe@upi",
+        upiId: eventForm.paymentUpiId || "aces.kbtcoe@upi",
+        fee: Math.round(Number(eventForm.feeInRupees || 0) * 100),
+        startDate: startDateIso,
+        eventDate: startDateIso,
+        registrationDeadline: registrationDeadlineIso,
+        endDate: endDateIso,
         whatsappGroupUrl: eventForm.whatsappGroupUrl || "https://chat.whatsapp.com/ACES-KBTCOE-Events",
         whatsappLink: eventForm.whatsappGroupUrl || "https://chat.whatsapp.com/ACES-KBTCOE-Events",
         isGroupEvent: Boolean(eventForm.isGroupEvent),
@@ -514,7 +856,9 @@ export const AdminDashboard = () => {
       isFeatured: event.isFeatured,
       isPaid: event.isPaid || false,
       feeInRupees: event.fee ? event.fee / 100 : 0,
-      paymentUpiId: event.paymentUpiId || "aceskbtcoe@okaxis",
+      paymentQrUrl: event.paymentQrUrl || event.upiQrCodeUrl || "",
+      upiQrCodeUrl: event.paymentQrUrl || event.upiQrCodeUrl || "",
+      paymentUpiId: event.paymentUpiId || event.upiId || "aces.kbtcoe@upi",
       paymentInstructions: event.paymentInstructions || "Pay via UPI and enter transaction UTR.",
       refundPolicy: event.refundPolicy || "Non-refundable once confirmed.",
       whatsappGroupUrl: event.whatsappGroupUrl || event.whatsappLink || "https://chat.whatsapp.com/ACES-KBTCOE-Events",
@@ -961,13 +1305,13 @@ export const AdminDashboard = () => {
 
   // Change 2: Pipeline segregation
   const now = new Date();
-  const upcomingEvents = events.filter((e) => new Date(e.startDate || e.eventDate) >= now);
-  const pastEvents = events.filter((e) => new Date(e.startDate || e.eventDate) < now);
+  const upcomingEvents = events.filter((e) => new Date(e.startDate || e.eventDate) >= now && e.status !== "CLOSED" && e.status !== "COMPLETED");
+  const pastEvents = events.filter((e) => new Date(e.startDate || e.eventDate) < now || e.status === "CLOSED" || e.status === "COMPLETED");
 
   const displayedPipelineEvents = events.filter((e) => {
     const isPast = new Date(e.startDate || e.eventDate) < now;
     if (pipelineFilter === "UPCOMING") return !isPast && e.status !== "CLOSED" && e.status !== "COMPLETED";
-    if (pipelineFilter === "PAST") return isPast || e.status === "COMPLETED";
+    if (pipelineFilter === "PAST") return isPast || e.status === "CLOSED" || e.status === "COMPLETED";
     if (pipelineFilter === "CLOSED") return e.status === "CLOSED" || e.status === "COMPLETED";
     return true; // "ALL"
   }).filter((e) => {
@@ -1308,6 +1652,19 @@ export const AdminDashboard = () => {
 
                   {/* Organizer Command Actions */}
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Live QR Attendance Check-In Button */}
+                    <button
+                      onClick={() => {
+                        setScanningEventId(deskEvent._id);
+                        setScanFeedback(null);
+                        setIsScannerModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold hover:brightness-110 shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
+                    >
+                      <QrCode size={14} />
+                      <span>Scan QR Attendance</span>
+                    </button>
+
                     {/* Event Status Toggles */}
                     {new Date(deskEvent.startDate || deskEvent.eventDate) < now && deskEvent.status === "PUBLISHED" ? (
                       <button
@@ -1360,6 +1717,15 @@ export const AdminDashboard = () => {
                       className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-xs font-semibold hover:bg-white/10"
                     >
                       Edit Info
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteEvent(deskEvent._id)}
+                      className="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold hover:bg-rose-500/20 inline-flex items-center gap-1.5 transition-colors"
+                      title="Permanently Delete Event"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
@@ -1480,15 +1846,28 @@ export const AdminDashboard = () => {
                 {deskSubTab === "attendees" && (
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="relative w-full sm:w-80">
-                        <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder="Search attendees by name, ticket, PRN, or email..."
-                          value={attendeeSearch}
-                          onChange={(e) => setAttendeeSearch(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
-                        />
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="relative w-full sm:w-80">
+                          <Search size={14} className="absolute left-3.5 top-3 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Search attendees by name, ticket, PRN, or email..."
+                            value={attendeeSearch}
+                            onChange={(e) => setAttendeeSearch(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 bg-navy-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-electric-blue"
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            setScanningEventId(deskEvent._id);
+                            setScanFeedback(null);
+                            setIsScannerModalOpen(true);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold hover:bg-emerald-600/30 flex items-center gap-1.5 flex-shrink-0"
+                        >
+                          <Camera size={13} />
+                          <span>Scan QR</span>
+                        </button>
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -1755,6 +2134,18 @@ export const AdminDashboard = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
+                        setScanningEventId("ALL");
+                        setScanFeedback(null);
+                        setIsScannerModalOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all"
+                    >
+                      <QrCode size={14} />
+                      <span>Scan QR Attendance</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
                         setEditingEventId(null);
                         setEventForm(defaultEventForm);
                         setIsEventModalOpen(true);
@@ -1933,16 +2324,34 @@ export const AdminDashboard = () => {
                               </button>
                             )}
 
-                            <button
-                              onClick={() => {
-                                setSelectedEventId(ev._id);
-                                setSelectedEventForDesk(ev);
-                              }}
-                              className="w-full py-2.5 px-4 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5"
-                            >
-                              <span>Open Event Operations Desk</span>
-                              <ChevronRight size={14} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedEventId(ev._id);
+                                  setSelectedEventForDesk(ev);
+                                }}
+                                className="flex-1 py-2 px-3 rounded-xl bg-electric-blue text-white text-xs font-bold hover:bg-blue-600 transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5"
+                              >
+                                <span>Operations Desk</span>
+                                <ChevronRight size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEditEvent(ev)}
+                                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
+                                title="Edit Event"
+                              >
+                                <Eye size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEvent(ev._id)}
+                                className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-colors"
+                                title="Delete Event"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -4397,11 +4806,16 @@ export const AdminDashboard = () => {
         {/* ========================================================================= */}
         {isEventModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-            <div className="relative w-full max-w-2xl bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-6 my-8">
+            <div className="relative w-full max-w-3xl bg-navy-900 border border-white/15 rounded-3xl p-6 sm:p-8 space-y-6 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h3 className="text-base font-bold text-white">
-                  {editingEventId ? "Edit Event Details" : "Create New Departmental Event"}
-                </h3>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {editingEventId ? "Edit Event Details" : "Create New Departmental Event"}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Configure official schedule, A4 vertical poster flyer, WhatsApp group, and tickets.
+                  </p>
+                </div>
                 <button
                   onClick={() => setIsEventModalOpen(false)}
                   className="p-1 rounded-lg text-slate-400 hover:text-white"
@@ -4411,6 +4825,126 @@ export const AdminDashboard = () => {
               </div>
 
               <form onSubmit={handleSaveEvent} className="space-y-4 text-xs">
+                {/* A4 EVENT POSTER SECTION */}
+                <div className="p-4 rounded-2xl bg-navy-950 border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon size={16} className="text-electric-cyan" />
+                      <span className="font-bold text-white text-xs">Official Event Poster (A4 Portrait Flyer)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 font-mono font-semibold">
+                        A4 Ratio (1 : 1.41)
+                      </span>
+                    </div>
+                    {eventForm.posterUrl && (
+                      <a
+                        href={eventForm.posterUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-electric-cyan hover:underline inline-flex items-center gap-1 font-semibold"
+                      >
+                        <Eye size={12} />
+                        <span>View Full Size</span>
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {/* A4 Preview Frame */}
+                    <div className="relative w-36 aspect-[1/1.414] rounded-xl overflow-hidden bg-navy-900 border-2 border-dashed border-white/20 flex-shrink-0 flex items-center justify-center group shadow-lg">
+                      {eventForm.posterUrl ? (
+                        <>
+                          <img
+                            src={eventForm.posterUrl}
+                            alt="A4 Event Poster"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+                            <label className="cursor-pointer px-2.5 py-1 rounded-lg bg-electric-blue text-white text-[10px] font-bold hover:bg-blue-600 transition-colors">
+                              Replace
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={uploadingPoster}
+                                onChange={(e) => {
+                                  if (e.target.files?.[0]) handlePosterUpload(e.target.files[0]);
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setEventForm({ ...eventForm, posterUrl: "" })}
+                              className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-700 transition-colors"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center p-3 text-slate-500 space-y-1">
+                          <UploadCloud size={24} className="mx-auto text-slate-400 animate-pulse" />
+                          <span className="text-[10px] font-bold block text-slate-400">No Poster</span>
+                          <span className="text-[9px] block">A4 Portrait</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Upload Controls & URL Fallback */}
+                    <div className="flex-1 w-full space-y-2.5">
+                      <div>
+                        <label className="cursor-pointer flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-cyan-500/30 hover:border-cyan-400 bg-white/[0.02] hover:bg-white/[0.04] transition-all text-center">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingPoster}
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) handlePosterUpload(e.target.files[0]);
+                            }}
+                          />
+                          {uploadingPoster ? (
+                            <div className="flex items-center gap-2 text-electric-cyan font-bold py-1">
+                              <RefreshCw size={15} className="animate-spin" />
+                              <span>Uploading high-resolution A4 poster (up to 50MB)...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <UploadCloud size={20} className="text-electric-cyan mb-1" />
+                              <span className="font-bold text-white text-xs">
+                                {eventForm.posterUrl
+                                  ? "Click to upload a new A4 poster image"
+                                  : "Click or drag & drop to upload A4 Event Poster"}
+                              </span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">
+                                Supports JPG, PNG, WEBP, AVIF up to 50MB. Vertical A4 layout (1 : 1.41) recommended.
+                              </span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+
+                      {posterError && (
+                        <div className="text-[11px] text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20">
+                          ⚠️ {posterError}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">
+                          Or paste direct poster image URL:
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://... or /assets/..."
+                          value={eventForm.posterUrl}
+                          onChange={(e) => setEventForm({ ...eventForm, posterUrl: e.target.value })}
+                          className="w-full px-3 py-1.5 bg-navy-900 border border-white/10 rounded-xl text-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="font-semibold text-slate-300 block mb-1">Event Title *</label>
@@ -4447,6 +4981,10 @@ export const AdminDashboard = () => {
                       <option value="COMPETITION">Competition</option>
                       <option value="FLAGSHIP">Flagship</option>
                       <option value="CLUB_ACTIVITY">Club Activity</option>
+                      <option value="HACKATHON">Hackathon</option>
+                      <option value="EXPERT_TALK">Expert Talk</option>
+                      <option value="CODING">Coding Challenge</option>
+                      <option value="OTHER">Other</option>
                     </select>
                   </div>
 
@@ -4507,28 +5045,142 @@ export const AdminDashboard = () => {
                     />
                   </div>
 
-                  <div className="col-span-2 flex items-center gap-4 py-2 border-y border-white/5">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={eventForm.isPaid}
-                        onChange={(e) => setEventForm({ ...eventForm, isPaid: e.target.checked })}
-                        className="rounded bg-navy-950 border-white/10 text-electric-blue"
-                      />
-                      <span className="font-semibold text-white">Paid Event (Requires UPI Payment)</span>
-                    </label>
+                  <div className="col-span-2 space-y-3 py-3 border-y border-white/5">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={eventForm.isPaid}
+                          onChange={(e) => setEventForm({ ...eventForm, isPaid: e.target.checked })}
+                          className="rounded bg-navy-950 border-white/10 text-electric-blue"
+                        />
+                        <span className="font-semibold text-white">Paid Event (Requires UPI Payment)</span>
+                      </label>
+
+                      {eventForm.isPaid && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">Fee (₹):</span>
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={eventForm.feeInRupees}
+                            onChange={(e) => setEventForm({ ...eventForm, feeInRupees: Number(e.target.value) })}
+                            className="w-24 px-2 py-1 bg-navy-950 border border-white/10 rounded text-white font-bold"
+                          />
+                        </div>
+                      )}
+                    </div>
 
                     {eventForm.isPaid && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Fee (₹):</span>
-                        <input
-                          type="number"
-                          step="1"
-                          min="0"
-                          value={eventForm.feeInRupees}
-                          onChange={(e) => setEventForm({ ...eventForm, feeInRupees: Number(e.target.value) })}
-                          className="w-24 px-2 py-1 bg-navy-950 border border-white/10 rounded text-white font-bold"
-                        />
+                      <div className="p-4 rounded-2xl bg-navy-950/80 border border-white/10 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <QrCode size={15} className="text-amber-400" />
+                            <span className="font-bold text-white text-xs">Official UPI Payment QR Code</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-semibold">
+                              Shown to Registrants
+                            </span>
+                          </div>
+                          {eventForm.paymentQrUrl && (
+                            <a
+                              href={eventForm.paymentQrUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-amber-300 hover:underline inline-flex items-center gap-1 font-semibold"
+                            >
+                              <Eye size={12} />
+                              <span>View QR</span>
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                          {/* QR Preview Frame */}
+                          <div className="relative w-28 h-28 mx-auto sm:mx-0 rounded-xl overflow-hidden bg-white p-2 border border-white/20 flex-shrink-0 flex items-center justify-center group shadow-md">
+                            {eventForm.paymentQrUrl ? (
+                              <>
+                                <img
+                                  src={eventForm.paymentQrUrl}
+                                  alt="Payment QR Code"
+                                  className="w-full h-full object-contain"
+                                />
+                                <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1">
+                                  <label className="cursor-pointer px-2 py-0.5 rounded bg-electric-blue text-white text-[9px] font-bold hover:bg-blue-600 transition-colors">
+                                    Replace
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      disabled={uploadingPaymentQr}
+                                      onChange={(e) => {
+                                        if (e.target.files?.[0]) handlePaymentQrUpload(e.target.files[0]);
+                                      }}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEventForm({ ...eventForm, paymentQrUrl: "", upiQrCodeUrl: "" })}
+                                    className="px-2 py-0.5 rounded bg-rose-600 text-white text-[9px] font-bold hover:bg-rose-700 transition-colors"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-center p-2 text-slate-400">
+                                <QrCode size={24} className="mx-auto text-slate-400 mb-1" />
+                                <span className="text-[9px] block leading-tight font-medium">No QR set</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Upload Actions & UPI ID */}
+                          <div className="sm:col-span-2 space-y-2">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                                Official ACES UPI ID (VPA):
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g. aces.kbtcoe@upi or aceskbtcoe@okaxis"
+                                value={eventForm.paymentUpiId}
+                                onChange={(e) => setEventForm({ ...eventForm, paymentUpiId: e.target.value })}
+                                className="w-full px-3 py-1.5 bg-navy-900 border border-white/15 rounded-xl text-white text-xs font-mono"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="cursor-pointer block border border-dashed border-white/20 hover:border-amber-400/50 bg-navy-900/50 hover:bg-navy-900 rounded-xl p-2.5 text-center transition-all">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingPaymentQr}
+                                  onChange={(e) => {
+                                    if (e.target.files?.[0]) handlePaymentQrUpload(e.target.files[0]);
+                                  }}
+                                />
+                                {uploadingPaymentQr ? (
+                                  <div className="flex items-center justify-center gap-2 text-amber-300 font-bold text-[11px]">
+                                    <RefreshCw size={13} className="animate-spin" />
+                                    <span>Uploading Payment QR...</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-2 text-slate-300 text-[11px]">
+                                    <UploadCloud size={14} className="text-amber-400" />
+                                    <span className="font-semibold text-white">
+                                      {eventForm.paymentQrUrl ? "Replace Payment QR Image" : "Upload UPI QR Code (Scanner Image)"}
+                                    </span>
+                                  </div>
+                                )}
+                              </label>
+                              {paymentQrError && (
+                                <p className="text-[10px] text-rose-400 mt-1 font-semibold">{paymentQrError}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -4544,22 +5196,345 @@ export const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
-                  <button
-                    type="button"
-                    onClick={() => setIsEventModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-electric-blue text-white font-bold hover:bg-blue-600"
-                  >
-                    Save Event
-                  </button>
+                <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/10">
+                  {editingEventId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDeleteEvent(editingEventId);
+                        setIsEventModalOpen(false);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold hover:bg-rose-500/20 flex items-center gap-1.5 transition-colors"
+                      title="Permanently Delete Event"
+                    >
+                      <Trash2 size={13} />
+                      <span>Delete Event</span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEventModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-white/5 text-slate-300 hover:bg-white/10"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-electric-blue text-white font-bold hover:bg-blue-600 shadow-md shadow-blue-500/20"
+                    >
+                      {editingEventId ? "Save Changes" : "Create Event"}
+                    </button>
+                  </div>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: LIVE QR ATTENDANCE SCANNER DESK */}
+        {/* ========================================================================= */}
+        {isScannerModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+            <div className="relative w-full max-w-xl bg-navy-900 border border-white/20 rounded-3xl p-6 sm:p-7 space-y-5 my-8 shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shadow-md">
+                    <QrCode size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Event Attendance QR Scanner</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                        Live Desk
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Scan participant's email QR pass or enter Ticket ID for instant attendance check-in.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setIsScannerModalOpen(false);
+                    setScanFeedback(null);
+                  }}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Event Filter & Mode Switcher */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-navy-950 p-3 rounded-2xl border border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-400">Target Event:</span>
+                  <select
+                    value={scanningEventId}
+                    onChange={(e) => setScanningEventId(e.target.value)}
+                    className="px-2.5 py-1.5 bg-navy-900 border border-white/15 rounded-xl text-xs text-white font-medium focus:outline-none focus:border-electric-blue max-w-[200px]"
+                  >
+                    <option value="ALL">Any / All Events</option>
+                    {events.map((ev) => (
+                      <option key={ev._id} value={ev._id}>
+                        {ev.title} ({ev.eventCode || "EVT"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1 bg-navy-900 p-1 rounded-xl border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannerMode("camera");
+                      setScanFeedback(null);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      scannerMode === "camera"
+                        ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <Camera size={13} />
+                    <span>Camera</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannerMode("file");
+                      setScanFeedback(null);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      scannerMode === "file"
+                        ? "bg-amber-400 text-black shadow-md shadow-amber-400/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <FolderUp size={13} />
+                    <span>Upload QR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannerMode("manual");
+                      setScanFeedback(null);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      scannerMode === "manual"
+                        ? "bg-electric-blue text-white shadow-md shadow-blue-500/20"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <span>Manual ID</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Hidden file scanner container */}
+              <div id="qr-file-detector-hidden" className="hidden" />
+
+              {/* File / Screenshot QR Scanner View */}
+              {scannerMode === "file" && (
+                <div className="space-y-3 p-4 rounded-2xl bg-navy-950 border border-white/10">
+                  <label className="cursor-pointer block border-2 border-dashed border-white/20 hover:border-amber-400/50 bg-navy-900/40 hover:bg-navy-900 rounded-2xl p-6 text-center transition-all">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={scanningFile}
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) handleQrFileUpload(e.target.files[0]);
+                      }}
+                    />
+                    {scanningFile ? (
+                      <div className="flex flex-col items-center gap-2 text-amber-300">
+                        <RefreshCw size={24} className="animate-spin" />
+                        <span className="text-xs font-bold">Decoding QR pass from screenshot...</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center border border-amber-400/20">
+                          <FolderUp size={24} />
+                        </div>
+                        <div>
+                          <strong className="text-white text-xs block">Choose or Drop QR Image / Ticket Screenshot</strong>
+                          <span className="text-[11px] text-slate-400">
+                            Upload a photo, screenshot of email pass, or download of ticket QR
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </label>
+                  <p className="text-center text-[11px] text-slate-400">
+                    📁 Works instantly on any device without requiring webcam permissions or HTTPS.
+                  </p>
+                </div>
+              )}
+
+              {/* Camera Scanner View */}
+              {scannerMode === "camera" && (
+                <div className="space-y-3">
+                  <div className="relative mx-auto w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-black border-2 border-emerald-500/40 shadow-inner flex flex-col items-center justify-center">
+                    {/* Viewport for Html5Qrcode */}
+                    <div id="qr-scanner-viewport" className="w-full h-full" />
+
+                    {/* Animated scanning line overlay */}
+                    <div className="absolute inset-x-8 top-1/2 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-pulse pointer-events-none" />
+
+                    {/* Camera flip toggle button */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCameraFacing((prev) => (prev === "environment" ? "user" : "environment"))
+                      }
+                      className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/60 hover:bg-black text-white text-xs border border-white/20 backdrop-blur-md shadow-md flex items-center gap-1"
+                    >
+                      <RefreshCw size={12} />
+                      <span className="text-[10px] font-bold">Flip Camera</span>
+                    </button>
+                  </div>
+                  <p className="text-center text-[11px] text-slate-400">
+                    📷 Hold participant's ticket QR code (from email pass) in front of the lens.
+                  </p>
+                </div>
+              )}
+
+              {/* Manual Entry View */}
+              {scannerMode === "manual" && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (manualTicketCode.trim()) handleScanTicket(manualTicketCode);
+                  }}
+                  className="space-y-3 p-4 rounded-2xl bg-navy-950 border border-white/10"
+                >
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Enter Ticket Pass ID, PRN, or Student Email:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. ACES-FLAGSHIP-XXXX or 72212345B"
+                      value={manualTicketCode}
+                      onChange={(e) => setManualTicketCode(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-navy-900 border border-white/15 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-electric-blue uppercase"
+                    />
+                    <button
+                      type="submit"
+                      disabled={scanLoading || !manualTicketCode.trim()}
+                      className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-md disabled:opacity-50 transition-all flex items-center gap-1.5"
+                    >
+                      {scanLoading ? <RefreshCw size={13} className="animate-spin" /> : <Check size={14} />}
+                      <span>Check In</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Live Scan Result Banner */}
+              {scanFeedback && (
+                <div
+                  className={`p-4 rounded-2xl border transition-all ${
+                    scanFeedback.type === "success"
+                      ? "bg-emerald-950/60 border-emerald-500/50 text-emerald-200"
+                      : scanFeedback.type === "warning"
+                      ? "bg-amber-950/60 border-amber-500/50 text-amber-200"
+                      : "bg-rose-950/60 border-rose-500/50 text-rose-200"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex-shrink-0">
+                      {scanFeedback.type === "success" ? (
+                        <CheckCircle2 size={22} className="text-emerald-400" />
+                      ) : scanFeedback.type === "warning" ? (
+                        <AlertTriangle size={22} className="text-amber-400" />
+                      ) : (
+                        <XCircle size={22} className="text-rose-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <div className="font-bold text-sm text-white">{scanFeedback.message}</div>
+                      {scanFeedback.attendee && (
+                        <div className="text-xs space-y-0.5 pt-1 border-t border-white/10">
+                          <div>
+                            Participant:{" "}
+                            <strong className="text-white">
+                              {scanFeedback.attendee.fullName || scanFeedback.attendee.name}
+                            </strong>{" "}
+                            {scanFeedback.attendee.prn && (
+                              <span className="font-mono text-slate-300">({scanFeedback.attendee.prn})</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-300">
+                            Ticket Pass:{" "}
+                            <span className="font-mono text-cyan-300 font-bold">
+                              {scanFeedback.attendee.ticketId}
+                            </span>{" "}
+                            • Event: {scanFeedback.eventTitle}
+                          </div>
+                          {scanFeedback.checkedInAt && (
+                            <div className="text-[10px] text-amber-300 font-mono">
+                              First recorded: {new Date(scanFeedback.checkedInAt).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Session Check-ins List */}
+              {sessionCheckIns.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                    <span>Recent Scans in this Session ({sessionCheckIns.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => setSessionCheckIns([])}
+                      className="text-[10px] text-slate-400 hover:text-rose-300 font-normal"
+                    >
+                      Clear Log
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 text-xs">
+                    {sessionCheckIns.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2 rounded-xl bg-navy-950 border border-white/5 flex items-center justify-between"
+                      >
+                        <div>
+                          <span className="font-bold text-white">{item.name}</span>
+                          <span className="font-mono text-slate-400 text-[10px] ml-2">{item.ticketId}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-emerald-400 font-semibold">{item.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex justify-end pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsScannerModalOpen(false);
+                    setScanFeedback(null);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-white/10 text-white font-bold hover:bg-white/15 text-xs"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         )}

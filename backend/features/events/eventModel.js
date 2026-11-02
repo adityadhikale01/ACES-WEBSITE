@@ -54,6 +54,7 @@ const eventSchema = new mongoose.Schema(
         'HACKATHON',
         'EXPERT_TALK',
         'CULTURAL',
+        'CLUB_ACTIVITY',
         'OTHER',
       ],
       default: 'WORKSHOP',

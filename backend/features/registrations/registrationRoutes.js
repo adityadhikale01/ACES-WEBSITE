@@ -5,6 +5,7 @@ import {
   getMyRegistrations,
   getEventAttendees,
   updateAttendance,
+  scanAttendanceCheckIn,
   exportAttendeesCSV,
 } from './registrationController.js';
 import { authMiddleware, optionalAuth, requireEventAdmin } from '../../middleware/authMiddleware.js';
@@ -37,6 +38,7 @@ router.delete('/:id', authMiddleware, WrapAsync(cancelRegistration));
 router.get('/my', authMiddleware, WrapAsync(getMyRegistrations));
 
 // Admin routes
+router.post('/scan-checkin', requireEventAdmin, WrapAsync(scanAttendanceCheckIn));
 router.get('/event/:eventId', requireEventAdmin, WrapAsync(getEventAttendees));
 router.get('/event/:eventId/export', requireEventAdmin, WrapAsync(exportAttendeesCSV));
 router.patch('/:id/attendance', requireEventAdmin, WrapAsync(updateAttendance));

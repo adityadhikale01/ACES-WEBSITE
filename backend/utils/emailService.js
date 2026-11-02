@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import QRCode from 'qrcode';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -129,7 +130,7 @@ ${mailOptions.html ? mailOptions.html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g,
   };
 };
 
-export const sendEmail = async ({ to, subject, html, text }) => {
+export const sendEmail = async ({ to, subject, html, text, attachments }) => {
   try {
     const cfg = await getEmailConfig();
     const mailer = await getTransporter();
@@ -143,6 +144,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
       subject,
       text: text || html.replace(/<[^>]*>?/gm, ''),
       html,
+      attachments: attachments || [],
     });
 
     return { success: true, info };
@@ -290,6 +292,34 @@ export const sendPaymentVerifiedEmail = async ({
   const subject = `🎟️ Payment Verified! Your Pass for ${eventTitle} (${ticketId})`;
   const formattedFee = (amountPaid / 100).toFixed(2);
 
+  let qrBuffer = null;
+  let qrDataUrl = '';
+  try {
+    qrBuffer = await QRCode.toBuffer(ticketId, {
+      width: 260,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    qrDataUrl = await QRCode.toDataURL(ticketId, {
+      width: 260,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+  } catch (err) {
+    console.warn('[QRCode Error]', err.message);
+  }
+
+  const qrSrc = qrDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(ticketId)}`;
+  const attachments = qrBuffer
+    ? [
+        {
+          filename: `ticket-${ticketId}.png`,
+          content: qrBuffer,
+          cid: `ticketqr_${ticketId}@aces.kbtcoe`,
+        },
+      ]
+    : [];
+
   const html = `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
     <div style="text-align: center; margin-bottom: 24px;">
@@ -302,11 +332,21 @@ export const sendPaymentVerifiedEmail = async ({
       <p style="color: #e2e8f0; margin: 0; font-size: 14px;">Your registration for <strong>${eventTitle}</strong> is active.</p>
     </div>
 
-    <!-- Pass Ticket Box -->
-    <div style="background: #111827; border: 2px dashed #0284c7; border-radius: 14px; padding: 20px; text-align: center; margin: 20px 0;">
-      <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; display: block;">Official Ticket Pass ID</span>
-      <strong style="color: #38bdf8; font-size: 24px; font-family: monospace; letter-spacing: 2px; display: block; margin: 6px 0;">${ticketId}</strong>
-      <span style="color: #64748b; font-size: 12px;">Participant: ${studentName}</span>
+    <!-- Pass Ticket Box with Embedded QR Code -->
+    <div style="background: #111827; border: 2px dashed #0284c7; border-radius: 16px; padding: 24px; text-align: center; margin: 20px 0;">
+      <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1.5px; display: block; margin-bottom: 8px;">Official Event Entry Pass</span>
+
+      <!-- QR Code Container -->
+      <div style="background: #ffffff; padding: 12px; display: inline-block; border-radius: 14px; margin: 8px auto 12px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+        <img src="${qrSrc}" alt="Ticket Pass QR Code: ${ticketId}" width="170" height="170" style="display: block; border-radius: 6px; margin: 0 auto;" />
+      </div>
+
+      <div style="color: #38bdf8; font-size: 12px; font-weight: 700; margin-bottom: 8px;">
+        📷 Present this QR Code at entry for instant check-in
+      </div>
+
+      <strong style="color: #ffffff; font-size: 22px; font-family: monospace; letter-spacing: 2px; display: block; margin: 4px 0;">${ticketId}</strong>
+      <span style="color: #94a3b8; font-size: 13px;">Participant: <strong style="color: #e2e8f0;">${studentName}</strong></span>
     </div>
 
     <div style="background: #0f172a; border-radius: 12px; padding: 16px; margin: 20px 0; font-size: 13px;">
@@ -327,7 +367,7 @@ export const sendPaymentVerifiedEmail = async ({
     </div>
 
     <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin-top: 16px; font-size: 12px; color: #94a3b8; text-align: center;">
-      ℹ️ ${cfg.eventNotes || 'Please keep this ticket pass handy on the day of the event.'}
+      ℹ️ ${cfg.eventNotes || 'Please show your QR Code at the registration desk on arrival.'}
     </div>
 
     <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
@@ -336,7 +376,7 @@ export const sendPaymentVerifiedEmail = async ({
   </div>
   `;
 
-  return sendEmail({ to, subject, html });
+  return sendEmail({ to, subject, html, attachments });
 };
 
 /**
@@ -346,17 +386,44 @@ export const sendFreeEventRegistrationEmail = async ({
   to,
   studentName,
   eventTitle,
+  eventCode = '',
+  category = 'WORKSHOP',
+  description = '',
   ticketId,
   eventDate = '',
   timeString = '',
   venue = 'Seminar Hall, KBTCOE',
   whatsappGroupUrl = 'https://chat.whatsapp.com/ACES-KBTCOE-Events',
+  posterUrl = '',
   isGroupRegistration = false,
   groupName = '',
   groupMembers = [],
 }) => {
   const cfg = await getEmailConfig();
   const subject = `🎟️ Registration Confirmed! Your Pass for ${eventTitle} (${ticketId})`;
+
+  let qrBuffer = null;
+  try {
+    qrBuffer = await QRCode.toBuffer(ticketId, {
+      width: 280,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+  } catch (err) {
+    console.warn('[QRCode Error]', err.message);
+  }
+
+  // Use reliable public HTTPS QR service so Gmail web and mobile render the QR pass instantly
+  const publicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(ticketId)}`;
+  const attachments = qrBuffer
+    ? [
+        {
+          filename: `ticket-${ticketId}.png`,
+          content: qrBuffer,
+          cid: `ticketqr_${ticketId}@aces.kbtcoe`,
+        },
+      ]
+    : [];
 
   const html = `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0f1d; color: #f1f5f9; padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);">
@@ -370,17 +437,43 @@ export const sendFreeEventRegistrationEmail = async ({
       <p style="color: #e2e8f0; margin: 0; font-size: 14px;">Your registration for <strong>${eventTitle}</strong> is active and confirmed.</p>
     </div>
 
-    <!-- Pass Ticket Box -->
-    <div style="background: #111827; border: 2px dashed #0284c7; border-radius: 14px; padding: 20px; text-align: center; margin: 20px 0;">
-      <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; display: block;">Official Ticket Pass ID</span>
-      <strong style="color: #38bdf8; font-size: 24px; font-family: monospace; letter-spacing: 2px; display: block; margin: 6px 0;">${ticketId}</strong>
-      <span style="color: #64748b; font-size: 12px;">Participant: ${studentName}</span>
+    ${
+      posterUrl && posterUrl.startsWith('http')
+        ? `
+    <div style="text-align: center; margin: 16px 0;">
+      <img src="${posterUrl}" alt="${eventTitle} Poster" style="max-width: 100%; max-height: 260px; border-radius: 12px; object-fit: contain; box-shadow: 0 4px 15px rgba(0,0,0,0.5);" />
+    </div>
+    `
+        : ''
+    }
+
+    <!-- Pass Ticket Box with Embedded QR Code -->
+    <div style="background: #111827; border: 2px dashed #0284c7; border-radius: 16px; padding: 24px; text-align: center; margin: 20px 0;">
+      <span style="color: #94a3b8; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1.5px; display: block; margin-bottom: 8px;">Official Event Entry Pass</span>
+
+      <!-- QR Code Container -->
+      <div style="background: #ffffff; padding: 12px; display: inline-block; border-radius: 14px; margin: 8px auto 12px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+        <img src="${publicQrUrl}" alt="Ticket Pass QR Code: ${ticketId}" width="180" height="180" style="display: block; border-radius: 6px; margin: 0 auto;" />
+      </div>
+
+      <div style="color: #38bdf8; font-size: 12px; font-weight: 700; margin-bottom: 8px;">
+        📷 Present this QR Code at the entry desk for instant check-in
+      </div>
+
+      <strong style="color: #ffffff; font-size: 22px; font-family: monospace; letter-spacing: 2px; display: block; margin: 4px 0;">${ticketId}</strong>
+      <span style="color: #94a3b8; font-size: 13px;">Participant: <strong style="color: #e2e8f0;">${studentName}</strong></span>
       ${isGroupRegistration && groupName ? `<span style="display: block; color: #38bdf8; font-size: 12px; margin-top: 4px;">Team: ${groupName}</span>` : ''}
     </div>
 
-    <div style="background: #0f172a; border-radius: 12px; padding: 16px; margin: 20px 0; font-size: 13px;">
-      <p style="margin: 6px 0; color: #cbd5e1;"><strong>Event:</strong> ${eventTitle}</p>
-      ${eventDate ? `<p style="margin: 6px 0; color: #cbd5e1;"><strong>Date & Time:</strong> ${eventDate} ${timeString ? `(${timeString})` : ''}</p>` : ''}
+    <!-- Complete Event Dossier -->
+    <div style="background: #0f172a; border-radius: 12px; padding: 18px; margin: 20px 0; font-size: 13px; border: 1px solid rgba(255,255,255,0.06);">
+      <div style="margin-bottom: 8px;">
+        ${eventCode ? `<span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-family: monospace; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 6px; margin-right: 6px;">${eventCode}</span>` : ''}
+        <span style="background: rgba(167, 139, 250, 0.15); color: #c084fc; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 6px; text-transform: uppercase;">${category}</span>
+      </div>
+      <p style="margin: 6px 0; color: #ffffff; font-size: 15px;"><strong>Event:</strong> ${eventTitle}</p>
+      ${description ? `<p style="margin: 6px 0 10px 0; color: #94a3b8; font-size: 12px; line-height: 1.5;">${description.length > 250 ? description.substring(0, 250) + '...' : description}</p>` : ''}
+      <p style="margin: 6px 0; color: #cbd5e1;"><strong>Date & Time:</strong> ${eventDate} ${timeString ? `(${timeString})` : ''}</p>
       <p style="margin: 6px 0; color: #cbd5e1;"><strong>Venue:</strong> ${venue}</p>
       <p style="margin: 6px 0; color: #cbd5e1;"><strong>Registration Fee:</strong> <span style="color: #34d399; font-weight: bold;">FREE</span></p>
     </div>
@@ -406,7 +499,7 @@ export const sendFreeEventRegistrationEmail = async ({
     </div>
 
     <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; margin-top: 16px; font-size: 12px; color: #94a3b8; text-align: center;">
-      ℹ️ ${cfg.eventNotes || 'Please show this ticket pass ID on arrival at the registration desk.'}
+      ℹ️ ${cfg.eventNotes || 'Please show your QR Code at the registration desk on arrival.'}
     </div>
 
     <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
@@ -415,7 +508,7 @@ export const sendFreeEventRegistrationEmail = async ({
   </div>
   `;
 
-  return sendEmail({ to, subject, html });
+  return sendEmail({ to, subject, html, attachments });
 };
 
 /**
