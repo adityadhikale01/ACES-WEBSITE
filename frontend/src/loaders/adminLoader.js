@@ -8,6 +8,7 @@ export async function adminLoader() {
       recentRegistrations: res.recentRegistrations || [],
       pendingPaymentQueue: res.pendingPaymentQueue || [],
     };
+    
   } catch (error) {
     return {
       stats: {},
