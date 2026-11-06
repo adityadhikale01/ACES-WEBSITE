@@ -5,6 +5,7 @@ export async function eventsLoader({ request }) {
   const searchParams = url.searchParams.toString();
   try {
     const res = await api.events.getAll(searchParams);
+    console.log('eventsLoader res', res);
     return { events: res.events || [] };
   } catch (error) {
     return { events: [], error: error.message };
