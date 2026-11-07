@@ -19,10 +19,11 @@ Official full-stack web application for **ACES KBTCOE** (Computer Engineering St
   - **Event Coordinators:** Khushi Mansuri & Yash Patil
   - **Committee Members:** Arjun Patil, Atharva Vispute, Apurva Rahane, Ronit Raheja, Purva Sonawane, Sarthak Patil, Sanyukti Gangurde, Mrunal Amrutkar, Mrunal Thete, Nirali Shah, Shraddha Sonar, Jiya Shah
 
----
+-----------------------
 
 ## 🛠️ Technology Stack
 
+------------------------
 ### Frontend
 - **Framework:** React 18 + TypeScript + Vite
 - **Routing:** React Router v7
